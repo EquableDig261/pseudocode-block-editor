@@ -3,9 +3,7 @@
 
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { DndProvider } from 'react-dnd';
-import { DraggableBox } from '@/components/DraggableBox';
 import DraggableAnywhere from '@/components/DraggableAnywhere';
-import { DropZone } from '@/components/DropZone';
 import { SharedStateProvider } from "@/context/SharedStateContext";
 
 export default function Home() {
