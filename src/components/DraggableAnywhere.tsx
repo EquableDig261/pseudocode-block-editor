@@ -7,7 +7,7 @@ type Box = {
   x: number;
   y: number;
   isOriginal: boolean;
-  height: number;
+  verticalOffset: number;
   color: string;
   text: string;
   indentation: number;
@@ -19,341 +19,314 @@ type BoxStack = {
   isDragging: boolean;
 };
 
-const BOX_HEIGHT = 20;
+const BoxType = {
+    BLOCK: "BLOCK",
+    WRAPPER: "WRAPPER",
+    END_WRAPPER: "END_WRAPPER",
+}
+
+const BOX_HEIGHT = 30;
+const BOX_WIDTH = 140;
+const LIBRARY_Y_SPACING = 50;
+const LIBRARY_X_SPACING = 50;
 
 export default function DraggableAnywhere() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const nextId = useRef(2);
-  const boxRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
-  const isHandlingMouseUp = useRef(false);
-  const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
-  const mouseUpHandlerRef = useRef<(() => void) | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const boxRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+    const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
+    const mouseUpHandlerRef = useRef<(() => void) | null>(null);
+    const nextId = useRef(0);
 
-  const [boxes, setBoxes] = useState<BoxStack[]>([
-    {
-      boxes: [{ id: 0, x: 100, y: 100, isOriginal: true, height: 0, color: "skyblue", text: "Display", indentation: 0, type: "block"}],
-      isDragging: false,
-    },
-    {
-      boxes: [
-        { id: 1, x: 100, y: 250, isOriginal: true, height: 0, color: "lightgreen", text: "IF", indentation: 0, type: "wrapper"},
-        { id: 2, x: 100, y: 250 + BOX_HEIGHT, isOriginal: true, height: 0, color: "lightgreen", text: "END IF", indentation: 0, type: "endWrapper"}
-      ],
-      isDragging: false,
-    },
-  ]);
 
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [targetBox, setTargetBox] = useState<Box | null>(null);
-  const [draggedBox, setDraggedBox] = useState<Box | null>(null);
+    // Box library definition
+    const boxLibrary = [
+        {boxes: [{name: "Display", type: BoxType.BLOCK}], color: "skyblue"},
+        {boxes: [{name: "IF", type: BoxType.WRAPPER}, {name: "ENDIF", type: BoxType.END_WRAPPER}], color: "lightgreen"},
+        {boxes: [{name: "Get", type: BoxType.BLOCK}], color: "coral"},
+    ]
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!containerRef.current) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - containerRect.left - offset.x;
-      const y = e.clientY - containerRect.top - offset.y;
-      const mouseRelX = e.clientX - containerRect.left;
-      const mouseRelY = e.clientY - containerRect.top;
-
-      if (!draggedBox) return;
-      const draggedBoxStack = boxes.find((boxStack) => boxStack.boxes.some((box) => box.id === draggedBox.id));
-      if (!draggedBoxStack) return;
-      const draggedBoxIndex = draggedBoxStack.boxes.findIndex((box) => box.id === draggedBox.id);
-      if (draggedBoxIndex === -1) return;
-
-      setBoxes((prev) =>
-        prev.map((boxStack) => {
-          if (boxStack.isDragging) {
-            return {
-              boxes: boxStack.boxes.map((box, index) => ({
-                ...box,
-                x: x + boxStack.boxes[0].indentation * 20,
-                y: y + (index - draggedBoxIndex) * 20, //+ BOX_HEIGHT * index,
-              })),
-              isDragging: boxStack.isDragging,
-            };
-          } else {
-            return boxStack;
-          }
-        })
-      );
-
-      // Find the dragging box stack
-      const draggingBoxStack = boxes.find((boxStack) => boxStack.isDragging);
-      if (!draggingBoxStack) return;
-
-      let closestTarget: Box | null = null;
-
-      boxes.forEach((boxStack) => {
-        boxStack.boxes.forEach((box) => {
-          const beingDragged = draggingBoxStack.boxes.some(
-            (draggedBox) => draggedBox.id === box.id
-          );
-
-          if (beingDragged || box.isOriginal) return;
-          if (
-            Math.abs(box.x + 50 + (box.indentation) * 20 + (box.type === "wrapper" ? 20 :0) - mouseRelX) < 50 &&
-            Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseRelY) < BOX_HEIGHT / 2 &&
-            (closestTarget === null ||
-              Math.hypot(box.x + 50 + (box.indentation) * 20 + (box.type === "wrapper" ? 20 :0) - mouseRelX, box.y + (BOX_HEIGHT * 1.5) - mouseRelY) <
-                Math.hypot(
-                  closestTarget.x + 50 + (box.indentation) * 20 + (box.type === "wrapper" ? 20 :0) - mouseRelX,
-                  closestTarget.y + (BOX_HEIGHT * 1.5) - mouseRelY
-                ))
-          ) {
-            closestTarget = box;
-          }
-        });
-      });
-
-      setTargetBox(closestTarget);
-
-      // Update heights only if there's a target
-      if (closestTarget) {
-        const dragHeight = draggingBoxStack.boxes.length;
-        setBoxes((prevBoxes) =>
-          prevBoxes.map((boxStack) => {
-            const targetIndex = boxStack.boxes.findIndex(
-              (box) => closestTarget && box.id === closestTarget.id
-            );
-            if (targetIndex === -1) {
-              return boxStack;
-            }
-
-            return {
-              ...boxStack,
-              boxes: boxStack.boxes.map((box, index) => ({
-                ...box,
-                height: index > targetIndex ? dragHeight : 0,
-              })),
-            };
-          })
-        );
-      } else {
-        // Reset heights if no target
-        setBoxes((prevBoxes) =>
-          prevBoxes.map((boxStack) => ({
-            ...boxStack,
-            boxes: boxStack.boxes.map((box) => ({ ...box, height: 0 })),
-          }))
-        );
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isHandlingMouseUp.current) return;
-      isHandlingMouseUp.current = true;
-
-      console.log("mouse up");
-
-      if (targetBox) {
-        setBoxes((prevBoxes) => {
-          // Find the dragging stack
-          const draggingBoxStack = prevBoxes.find(
-            (boxStack) => boxStack.isDragging
-          );
-          if (!draggingBoxStack) return prevBoxes;
-
-          // Find the target stack and index
-          const targetBoxStackIndex = prevBoxes.findIndex((boxStack) =>
-            boxStack.boxes.some((box) => box.id === targetBox.id)
-          );
-          if (targetBoxStackIndex === -1) return prevBoxes;
-
-          const targetBoxStack = prevBoxes[targetBoxStackIndex];
-          const targetIndex = targetBoxStack.boxes.findIndex(
-            (box) => box.id === targetBox.id
-          );
-
-          // Create the new boxes array
-          const newBoxes = [...prevBoxes];
-          
-          // Split the target stack
-          const beforeTarget = targetBoxStack.boxes.slice(0, targetIndex + 1);
-          const afterTarget = targetBoxStack.boxes.slice(targetIndex + 1);
-          
-          // Create the merged boxes
-          const mergedBoxes = [
-            ...beforeTarget,
-            ...draggingBoxStack.boxes.map((box, index) => ({
-              ...box,
-              x: targetBox.x,
-              y: targetBox.y + BOX_HEIGHT * (index + 1),
-              height: 0,
-              indentation: box.indentation + targetBox.indentation + (targetBox.type === "wrapper" ? 1 : 0),
+    // library of Boxes auto dynamically assigned to Stacks
+    let heightOffset = 0;
+    const originalBoxes: BoxStack[] = boxLibrary.map((stack, index) => {
+        heightOffset += stack.boxes.length - 1;
+        return {boxes: stack.boxes.map((b, i) => ({
+            id: nextId.current++,
+            x: LIBRARY_X_SPACING,
+            y: LIBRARY_Y_SPACING * (index + 1) + i * BOX_HEIGHT + (heightOffset - stack.boxes.length + 1) * BOX_HEIGHT,
+            isOriginal: true,
+            verticalOffset: 0,
+            color: stack.color,
+            text: b.name,
+            indentation: 0,
+            type: b.type,
             })),
-            ...afterTarget.map((box) => ({
-              ...box,
-              y: box.y + BOX_HEIGHT * draggingBoxStack.boxes.length,
-              height: 0,
-            })),
-          ];
-
-          // Update the target stack
-          newBoxes[targetBoxStackIndex] = {
-            boxes: mergedBoxes,
             isDragging: false,
-          };
-
-          // Remove the dragging stack
-          return newBoxes.filter((boxStack) => !boxStack.isDragging);
-        });
-      } else {
-        // Just stop dragging if no target
-        setBoxes((prevBoxes) =>
-          prevBoxes.map((boxStack) => ({
-            ...boxStack,
-            isDragging: false,
-          }))
-        );
-      }
-
-      setTargetBox(null);
-
-      // Reset the flag after a short delay
-      setTimeout(() => {
-        isHandlingMouseUp.current = false;
-      }, 0);
-    };
-
-    // Store the handlers in refs
-    mouseMoveHandlerRef.current = handleMouseMove;
-    mouseUpHandlerRef.current = handleMouseUp;
-
-    // Add event listeners
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-
-    return () => {
-      // Remove event listeners
-      if (mouseMoveHandlerRef.current) {
-        document.removeEventListener("mousemove", mouseMoveHandlerRef.current);
-      }
-      if (mouseUpHandlerRef.current) {
-        document.removeEventListener("mouseup", mouseUpHandlerRef.current);
-      }
-    };
-  }, [offset, boxes, targetBox, draggedBox]);
-
-  const onMouseDown = (e: React.MouseEvent, id: number) => {
-    const ref = boxRefs.current[id];
-    if (!ref || !containerRef.current) return;
-
-    const boxRect = ref.getBoundingClientRect();
-    const offsetX = e.clientX - boxRect.left;
-    const offsetY = e.clientY - boxRect.top;
-
-    setOffset({ x: offsetX, y: offsetY });
-
-    const draggingBox = boxes
-      .flatMap((boxStack) => boxStack.boxes)
-      .find((box) => box.id === id);
-    if (!draggingBox) {
-        setDraggedBox(null);
-        return;
-    }
-    setDraggedBox(draggingBox);
-
-
-    const draggingBoxStack = boxes.find(boxStack => boxStack.boxes.some(box => box.id === id));
-    if (!draggingBoxStack) return;
-    if (draggingBox.isOriginal) {
-      const cloneId = nextId.current += 2;
-      const clone: BoxStack = {
-        boxes: draggingBoxStack.boxes.map((boxStack, index) => {return {...boxStack, isOriginal: false, id: cloneId - index, }}),
-        isDragging: true,
-      };
-      setBoxes((prev) => [...prev, clone]);
-    } else {
-      const boxStackIndex = boxes.findIndex((boxStack) =>
-        boxStack.boxes.some((box) => box.id === id)
-      );
-      
-      if (boxStackIndex === -1) return;
-      
-      setBoxes((prev) => {
-        const newBoxes = [...prev];
-        const originalBoxStack = { ...newBoxes[boxStackIndex] };
-        const boxIndex = originalBoxStack.boxes.findIndex((box) => box.id === id);
-
-        let remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex);
-        let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
-        
-        if (draggingBox.type === "wrapper") {
-            let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-            if (endIndex === -2) {
-                endIndex = originalBoxStack.boxes.length - 1;
-            }
-            draggedBoxes = originalBoxStack.boxes.slice(boxIndex, endIndex + 1);
-            remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
-        }
-        else if (draggingBox.type === "endWrapper") {
-            const startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => box.indentation === draggingBox.indentation && box.type === "wrapper" && boxIndex > originalBoxStack.boxes.length - index - 1);
-            let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-            console.log("startIndex", startIndex);
-            console.log("endIndex", endIndex);
-            if (endIndex === -2) {
-                endIndex = originalBoxStack.boxes.length - 1;
-            }
-            if (startIndex !== -1) {
-                draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
-                remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
-            }
-        }
-        else {
-            let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-            if (endIndex === -2) {
-                endIndex = originalBoxStack.boxes.length - 1;
-            }
-            draggedBoxes = originalBoxStack.boxes.slice(boxIndex, endIndex + 1);
-            remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
-        }
-
-        console.log("remainingBoxes", remainingBoxes);
-        console.log("draggedBoxes", draggedBoxes);
-
-
-
-        
-        
-        
-        if (remainingBoxes.length === 0) {
-          newBoxes.splice(boxStackIndex, 1);
-        }
-        else {
-            newBoxes[boxStackIndex] = {
-                ...originalBoxStack,
-                boxes: remainingBoxes.map((box, index) => { return {...box, y: remainingBoxes[0].y + index * BOX_HEIGHT}}),
-              };
-        }
-        
-        // calculate indentation on each box
-
-        let currentIndentation = 0;
-        let previousIndentation = 0;
-
-        const newBoxStack: BoxStack = {
-          boxes: draggedBoxes.map((box) => {
-            previousIndentation = currentIndentation;
-            if (box.type === "wrapper") {
-                currentIndentation += 1;
-            } else if (box.type === "endWrapper") {
-                currentIndentation -= 1;
-                previousIndentation -= 1;
-            }
-            return {...box, x: box.x + draggedBoxes[0].indentation * 20, indentation: previousIndentation}
-          }),
-          isDragging: true,
         };
+    });
+
+    const [boxes, setBoxes] = useState<BoxStack[]>(originalBoxes);
+    const [grabOffset, setGrabOffset] = useState({ x: 0, y: 0 });
+    const [DropTargetBox, setDropTargetBox] = useState<Box | null>(null);
+    const [draggingBox, setDraggingBox] = useState<Box | null>(null);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!containerRef.current) return;
+
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const boxX = e.clientX - containerRect.left - grabOffset.x;
+            const boxY = e.clientY - containerRect.top - grabOffset.y;
+            const mouseX = e.clientX - containerRect.left;
+            const mouseY = e.clientY - containerRect.top;
+
+            if (!draggingBox) return;
+            const draggedBoxStack = boxes.find((boxStack) => 
+                boxStack.boxes.some((box) => box.id === draggingBox.id)
+            );
+            const draggedBoxIndex = draggedBoxStack?.boxes.findIndex((box) => 
+                box.id === draggingBox.id
+            );
+            if (!draggedBoxStack || draggedBoxIndex === -1 || draggedBoxIndex === undefined) return;
+
+            // Set the position of the dragging box stack to the position of the mouse
+            setBoxes((prev) =>
+                prev.map((boxStack) => {
+                    if (!boxStack.isDragging) return boxStack;
+                    return {
+                        boxes: boxStack.boxes.map((box, index) => ({
+                            ...box,
+                            x: boxX + boxStack.boxes[0].indentation * BOX_HEIGHT,
+                            y: boxY + (index - draggedBoxIndex) * BOX_HEIGHT,
+                        })),
+                        isDragging: boxStack.isDragging,
+                    };                    
+                })
+            );
+
+            const draggingBoxStack = boxes.find((boxStack) => boxStack.isDragging);
+            if (!draggingBoxStack) return;
+
+            let closestTarget: Box | null = null;
+
+            // Find the closest target that the mouse is within
+            boxes.forEach((boxStack) => {
+                boxStack.boxes.forEach((box) => {
+                    const beingDragged = draggingBoxStack.boxes.some(
+                        (draggedBox) => draggedBox.id === box.id
+                    );
+                    if (beingDragged || box.isOriginal) return;
+
+                    const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BoxType.WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
+                                              Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseY) < BOX_HEIGHT / 2
+                    const distanceToCentreOfTarget = Math.hypot(box.x + BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BoxType.WRAPPER ? BOX_HEIGHT :0) - mouseX, box.y + (BOX_HEIGHT * 1.5) - mouseY)
+                    const closestDistanceToCentre = closestTarget ? Math.hypot(closestTarget.x +  BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BoxType.WRAPPER ? BOX_HEIGHT :0) - mouseX, closestTarget.y + (BOX_HEIGHT * 1.5) - mouseY) : Infinity;
+
+                    if (mouseWithinTarget && distanceToCentreOfTarget < closestDistanceToCentre) {
+                        closestTarget = box;
+                    }
+                });
+            });
+
+            setDropTargetBox(closestTarget);
+
+            // If a target is found move blocks out of the way to show how the new block would go
+            if (closestTarget) {
+                const draggingStackLength = draggingBoxStack.boxes.length;
+                setBoxes((prevBoxes) =>
+                    prevBoxes.map((boxStack) => {
+                        const targetIndex = boxStack.boxes.findIndex((box) => closestTarget && box.id === closestTarget.id);
+                        if (targetIndex === -1) return boxStack;
+                        return {
+                            ...boxStack,
+                            boxes: boxStack.boxes.map((box, index) => ({
+                                ...box,
+                                verticalOffset: index > targetIndex ? draggingStackLength : 0,
+                            })),
+                        };
+                    })
+                );
+            } else {
+                // Reset heights if no target
+                setBoxes((prevBoxes) =>
+                    prevBoxes.map((boxStack) => ({
+                        ...boxStack,
+                        boxes: boxStack.boxes.map((box) => ({ ...box, verticalOffset: 0 })),
+                    }))
+                );
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (DropTargetBox) {
+                // Drop Boxes into the middle of a Box Stack 
+                setBoxes((prevBoxes) => {
+                    const draggingBoxStack = prevBoxes.find((boxStack) => boxStack.isDragging);
+                    if (!draggingBoxStack) return prevBoxes;
+
+                    const targetBoxStackIndex = prevBoxes.findIndex((boxStack) =>
+                        boxStack.boxes.some((box) => box.id === DropTargetBox.id)
+                    );
+                    if (targetBoxStackIndex === -1) return prevBoxes;
+
+                    const targetBoxStack = prevBoxes[targetBoxStackIndex];
+                    const targetIndex = targetBoxStack.boxes.findIndex(
+                        (box) => box.id === DropTargetBox.id
+                    );
+
+                    const newBoxes = [...prevBoxes];
+                    
+                    const beforeTarget = targetBoxStack.boxes.slice(0, targetIndex + 1);
+                    const afterTarget = targetBoxStack.boxes.slice(targetIndex + 1);
+                    
+                    // Merge the Three catagories of Boxes; Before, Dragged and After
+                    const mergedBoxes = [
+                        ...beforeTarget,
+                        ...draggingBoxStack.boxes.map((box, index) => ({
+                            ...box,
+                            x: DropTargetBox.x,
+                            y: DropTargetBox.y + BOX_HEIGHT * (index + 1),
+                            verticalOffset: 0,
+                            indentation: box.indentation + DropTargetBox.indentation + (DropTargetBox.type === BoxType.WRAPPER ? 1 : 0),
+                        })),
+                        ...afterTarget.map((box) => ({
+                            ...box,
+                            y: box.y + BOX_HEIGHT * draggingBoxStack.boxes.length,
+                            verticalOffset: 0,
+                        })),
+                    ];
+
+                // Update the target stack
+                newBoxes[targetBoxStackIndex] = {
+                    boxes: mergedBoxes,
+                    isDragging: false,
+                };
+
+                // Remove the dragging stack
+                return newBoxes.filter((boxStack) => !boxStack.isDragging);
+                });
+            } else {
+                // Just stop dragging if no target
+                setBoxes((prevBoxes) =>
+                    prevBoxes.map((boxStack) => ({
+                        ...boxStack,
+                        isDragging: false,
+                    }))
+                );
+            }
+
+            setDropTargetBox(null);
+        };
+
+        // Store the handlers in refs
+        mouseMoveHandlerRef.current = handleMouseMove;
+        mouseUpHandlerRef.current = handleMouseUp;
+
+        // Add event listeners
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+
+        return () => {
+            // Remove event listeners
+            if (mouseMoveHandlerRef.current) {
+                document.removeEventListener("mousemove", mouseMoveHandlerRef.current);
+            }
+            if (mouseUpHandlerRef.current) {
+                document.removeEventListener("mouseup", mouseUpHandlerRef.current);
+            }
+        };
+    }, [grabOffset, boxes, DropTargetBox, draggingBox]);
+
+    const onMouseDown = (e: React.MouseEvent, id: number) => {
+        const ref = boxRefs.current[id];
+        if (!ref || !containerRef.current) return;
+
+        const boxRect = ref.getBoundingClientRect();
+        const offsetX = e.clientX - boxRect.left;
+        const offsetY = e.clientY - boxRect.top;
+
+        setGrabOffset({ x: offsetX, y: offsetY });
+
+        // find the box that is currently selected
+        const draggingBox = boxes.flatMap((boxStack) => boxStack.boxes).find((box) => box.id === id);
+        if (!draggingBox) {
+            setDraggingBox(null);
+            return;
+        }
+        setDraggingBox(draggingBox);
+
+        const draggingBoxStack = boxes.find(boxStack => boxStack.boxes.some(box => box.id === id));
+        if (!draggingBoxStack) return;
+        if (draggingBox.isOriginal) {
+            const cloneId = nextId.current += draggingBoxStack.boxes.length;
+            const clone: BoxStack = {
+                boxes: draggingBoxStack.boxes.map((boxStack, index) => {return {...boxStack, isOriginal: false, id: cloneId - index, }}),
+                isDragging: true,
+            };
+            setBoxes((prev) => [...prev, clone]);
+        } else {
+            const boxStackIndex = boxes.findIndex((boxStack) =>
+                boxStack.boxes.some((box) => box.id === id)
+        );
         
-        newBoxes.push(newBoxStack);
+        if (boxStackIndex === -1) return;
         
-        return newBoxes;
-      });
-    }
-  };
+        setBoxes((prev) => {
+            const newBoxes = [...prev];
+            const originalBoxStack = { ...newBoxes[boxStackIndex] };
+            const boxIndex = originalBoxStack.boxes.findIndex((box) => box.id === id);
+
+            let remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex);
+            let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
+
+            let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+            let startIndex = boxIndex;
+            
+            if (draggingBox.type === BoxType.WRAPPER) {
+                endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+            }
+            else if (draggingBox.type === BoxType.END_WRAPPER) {
+                startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => box.indentation === draggingBox.indentation && box.type === BoxType.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
+                endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+            }
+
+            if (endIndex === -2) {
+                endIndex = originalBoxStack.boxes.length - 1
+            }
+            draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
+            remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
+
+            if (remainingBoxes.length === 0) {
+            newBoxes.splice(boxStackIndex, 1);
+            }
+            else {
+                newBoxes[boxStackIndex] = {
+                    ...originalBoxStack,
+                    boxes: remainingBoxes.map((box, index) => { return {...box, y: remainingBoxes[0].y + index * BOX_HEIGHT}}),
+                };
+            }
+            
+            // calculate indentation on each box
+            let currentIndentation = 0;
+            let previousIndentation = 0;
+
+            const newBoxStack: BoxStack = {
+                boxes: draggedBoxes.map((box) => {
+                    previousIndentation = currentIndentation;
+                    if (box.type === BoxType.WRAPPER) {
+                        currentIndentation += 1;
+                    } else if (box.type === BoxType.END_WRAPPER) {
+                        currentIndentation -= 1;
+                        previousIndentation -= 1;
+                    }
+                    return {...box, x: box.x + draggedBoxes[0].indentation * BOX_HEIGHT, indentation: previousIndentation}
+                }),
+                isDragging: true,
+            };
+            newBoxes.push(newBoxStack);
+            return newBoxes;
+        });
+        }
+    };
 
   return (
     
@@ -389,35 +362,32 @@ export default function DraggableAnywhere() {
           onMouseDown={(e) => onMouseDown(e, box.id)}
           style={{
             position: "absolute",
-            left: box.x + box.indentation * 20,
-            top: box.y + BOX_HEIGHT * box.height,
-            width: 100,
-            height: BOX_HEIGHT * (box.type === "wrapper" ? 1 : 1),
+            left: box.x + box.indentation * BOX_HEIGHT,
+            top: box.y + BOX_HEIGHT * box.verticalOffset,
+            width: BOX_WIDTH,
+            height: BOX_HEIGHT * (box.type === BoxType.WRAPPER ? 1 : 1),
             backgroundColor: box.color,
             cursor: boxes.some(boxStack2 => boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging)? "grabbing" : "grab",
             userSelect: "none",
             zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
             paddingLeft: 5,
-            borderTopLeftRadius: topLeftCornerRadius,
-            borderTopRightRadius: topRightCornerRadius,
-            borderBottomLeftRadius: bottomLeftCornerRadius,
-            borderBottomRightRadius: bottomRightCornerRadius,
+            borderRadius: `${topLeftCornerRadius}px ${topRightCornerRadius}px ${bottomRightCornerRadius}px ${bottomLeftCornerRadius}px`,
           }}
         >
           {box.text}
         </div>
     })}
-      {targetBox && (
+      {DropTargetBox && (
         <div
           style={{
             position: "absolute",
-            left: targetBox.x + targetBox.indentation * 20 + (targetBox.type === "wrapper" ? 20 : 0),
-            top: targetBox.y + BOX_HEIGHT,
-            width: 100,
+            left: DropTargetBox.x + DropTargetBox.indentation * BOX_HEIGHT + (DropTargetBox.type === BoxType.WRAPPER ? BOX_HEIGHT : 0),
+            top: DropTargetBox.y + BOX_HEIGHT,
+            width: BOX_WIDTH,
             height: BOX_HEIGHT,
             backgroundColor: "rgba(128, 128, 128, 0.5)",
             pointerEvents: "none",
-            zIndex: targetBox.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === targetBox.id)) + 1,
+            zIndex: DropTargetBox.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === DropTargetBox.id)) + 1,
           }}
         ></div>
       )}
