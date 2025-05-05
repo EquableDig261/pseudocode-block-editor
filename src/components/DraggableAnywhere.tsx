@@ -343,16 +343,16 @@ export default function DraggableAnywhere() {
       {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
         const boxStack = boxes.find(BoxStack2 => BoxStack2.boxes.some(box2 => box2.id === box.id))
         const boxIndex = boxStack?.boxes.findIndex(box2 => box2.id === box.id);
-        const boxStackLength = (boxes.find(boxStack2 => boxStack2.boxes.some(box2 => box2.id === box.id))?.boxes.length ?? 1);
-        let topLeftCornerRadius = boxIndex === 0 ? 10 : 0;
-        let bottomRightCornerRadius = boxStackLength - 1 === boxIndex ? 10 : 0;
-        let topRightCornerRadius = topLeftCornerRadius;
-        let bottomLeftCornerRadius = bottomRightCornerRadius;
+        // const boxStackLength = (boxes.find(boxStack2 => boxStack2.boxes.some(box2 => box2.id === box.id))?.boxes.length ?? 1);
+        // let topLeftCornerRadius = boxIndex === 0 ? 10 : 0;
+        // let bottomRightCornerRadius = boxStackLength - 1 === boxIndex ? 10 : 0;
+        // let topRightCornerRadius = topLeftCornerRadius;
+        // let bottomLeftCornerRadius = bottomRightCornerRadius;
         if (boxIndex !== undefined && boxStack) {
-            bottomLeftCornerRadius = boxIndex !== boxStackLength - 1 && boxStack.boxes[boxIndex + 1].indentation > box.indentation ? 10 : bottomLeftCornerRadius;
-            bottomRightCornerRadius = boxIndex !== boxStackLength - 1 && boxStack.boxes[boxIndex + 1].indentation < box.indentation ? 10 : bottomRightCornerRadius;
-            topLeftCornerRadius = boxIndex !== 0 && boxStack.boxes[boxIndex - 1].indentation > box.indentation ? 10 : topLeftCornerRadius;
-            topRightCornerRadius = boxIndex !== 0 && boxStack.boxes[boxIndex - 1].indentation < box.indentation ? 10 : topRightCornerRadius;
+            // bottomLeftCornerRadius = boxIndex !== boxStackLength - 1 && boxStack.boxes[boxIndex + 1].indentation > box.indentation ? 10 : bottomLeftCornerRadius;
+            // bottomRightCornerRadius = boxIndex !== boxStackLength - 1 && boxStack.boxes[boxIndex + 1].indentation < box.indentation ? 10 : bottomRightCornerRadius;
+            // topLeftCornerRadius = boxIndex !== 0 && boxStack.boxes[boxIndex - 1].indentation > box.indentation ? 10 : topLeftCornerRadius;
+            // topRightCornerRadius = boxIndex !== 0 && boxStack.boxes[boxIndex - 1].indentation < box.indentation ? 10 : topRightCornerRadius;
         }
         return <div
           key={box.id}
@@ -364,17 +364,33 @@ export default function DraggableAnywhere() {
             position: "absolute",
             left: box.x + box.indentation * BOX_HEIGHT,
             top: box.y + BOX_HEIGHT * box.verticalOffset,
-            width: BOX_WIDTH,
+            // width: BOX_WIDTH,
             height: BOX_HEIGHT * (box.type === BoxType.WRAPPER ? 1 : 1),
             backgroundColor: box.color,
             cursor: boxes.some(boxStack2 => boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging)? "grabbing" : "grab",
             userSelect: "none",
             zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
             paddingLeft: 5,
-            borderRadius: `${topLeftCornerRadius}px ${topRightCornerRadius}px ${bottomRightCornerRadius}px ${bottomLeftCornerRadius}px`,
+            // borderRadius: `${topLeftCornerRadius}px ${topRightCornerRadius}px ${bottomRightCornerRadius}px ${bottomLeftCornerRadius}px`,
+            borderRadius: "0 10px 10px 0",
           }}
         >
-          {box.text}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px", // spacing between text and box
+            height: "100%",
+            paddingRight: 10,
+        }}>
+            <span>{box.text}</span>
+            <div style={{
+                borderRadius: 10, 
+                width: BOX_HEIGHT,
+                height: BOX_HEIGHT - 10,
+                backgroundColor: "white",
+                flexShrink: 0,
+            }}></div>
+            </div>
         </div>
     })}
       {DropTargetBox && (
