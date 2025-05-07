@@ -37,7 +37,7 @@ function getEmptySubBlock(id: number) {
 const BOX_HEIGHT = 34;
 const BOX_WIDTH = 160;
 const LIBRARY_Y_SPACING = 60;
-const LIBRARY_X_SPACING = 50;
+const LIBRARY_X_SPACING = 20;
 const BOX_RADIUS = 12;
 const SUB_BLOCK_HEIGHT = 28;
 const EMPTY_BLOCK_WIDTH = 40;
@@ -48,11 +48,15 @@ const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
 
 // Colors with better contrast
 const COLORS = {
-    SKYBLUE: "#4dabf7",
-    LIGHTGREEN: "#51cf66",
-    CORAL: "#ff922b",
-    PURPLE: "#9775fa",
+    ORANGE: "#FA9C1B",
+    YELLOW: "#ff922b",
+    LIGHT_GREEN: "#51cf66",
     FOREST: "#37b24d",
+    CYAN: "#30D5C8",
+    SKYBLUE: "#4dabf7",
+    DARK_BLUE: "#00008B",
+    PURPLE: "#9775fa",
+
     EMPTY: "#e9ecef",
     DROP_TARGET: "#ced4da",
     BACKGROUND: "#f8f9fa",
@@ -112,17 +116,55 @@ export default function DraggableAnywhere() {
     const boxRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
     const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
     const mouseUpHandlerRef = useRef<(() => void) | null>(null);
-    const nextId = useRef(11);
-
+    let libId = 0;
+    const emptyLibSubBlock = () => {
+        return getEmptySubBlock(libId++);
+    }
+    
     // Box library definition with improved colors
-    const boxLibrary = [
-        {boxes: [{type: BoxType.BLOCK, id: 0, contents: ["Display", getEmptySubBlock(6)],}], color: COLORS.SKYBLUE},
-        {boxes: [{type: BoxType.WRAPPER, id: 1, contents: ["IF", getEmptySubBlock(7)]}, {type: BoxType.END_WRAPPER, id: 2, contents: ["ENDIF"]}], color: COLORS.LIGHTGREEN},
-        {boxes: [{type: BoxType.BLOCK, id: 3, contents: ["GET", getEmptySubBlock(8)]}], color: COLORS.CORAL},
-        {boxes: [{type: BoxType.SUB_BLOCK, id: 4, contents: ["var"]}], color: COLORS.PURPLE},
-        {boxes: [{type: BoxType.SUB_BLOCK, id: 5, contents: [getEmptySubBlock(9), "+", getEmptySubBlock(10)]}], color: COLORS.FOREST},
+    const boxLibrary = [        
+        // Loops / Wrappers light yellow ig:
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["BEGIN"]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["END"]}], color: COLORS.YELLOW},
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["IF",  emptyLibSubBlock()]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["ENDIF"]}], color: COLORS.YELLOW},
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["WHILE",  emptyLibSubBlock()]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["ENDWHILE"]}], color: COLORS.YELLOW},
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["REPEAT"]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["UNTIL", emptyLibSubBlock()]}], color: COLORS.YELLOW},
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["CASEWHERE",  emptyLibSubBlock()]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["ENDCASE"]}], color: COLORS.YELLOW},
+        {boxes: [{type: BoxType.WRAPPER, id: libId++, contents: ["FOR",  emptyLibSubBlock(), "=", emptyLibSubBlock(), "to", emptyLibSubBlock(), "STEP", emptyLibSubBlock()]}, {type: BoxType.END_WRAPPER, id: libId++, contents: ["NEXT"]}], color: COLORS.YELLOW},
+        
+        // Funcs - cyan
+        {boxes: [{type: BoxType.BLOCK, id: libId++, contents: ["Display", emptyLibSubBlock()],}], color: COLORS.CYAN},
+        {boxes: [{type: BoxType.BLOCK, id: libId++, contents: ["GET",  emptyLibSubBlock()]}], color: COLORS.CYAN},
+        
+        // updates - lBlue
+        {boxes: [{type: BoxType.BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "=",  emptyLibSubBlock()]}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BoxType.BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "+=",  emptyLibSubBlock()]}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BoxType.BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "++"]}], color: COLORS.SKYBLUE},
+        
+        // return Number - dblue
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "+", emptyLibSubBlock()]}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "-", emptyLibSubBlock()]}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "*", emptyLibSubBlock()]}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "/", emptyLibSubBlock()]}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ "length of", emptyLibSubBlock()]}], color: COLORS.DARK_BLUE},
+        
+        // return string - lGreen
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "+", emptyLibSubBlock()]}], color: COLORS.LIGHT_GREEN},
+        
+        // return bool - orange oper
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "AND", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "OR", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ "NOT", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "==", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "!=", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), ">", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), ">=", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "<", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: libId++, contents: [ emptyLibSubBlock(), "<=", emptyLibSubBlock()]}], color: COLORS.ORANGE},
+
+        // var - purple
     ]
 
+    const nextId = useRef(libId);
     // library of Boxes auto dynamically assigned to Stacks
     let heightOffset = 0;
     const originalBoxes: BoxStack[] = boxLibrary.map((stack, index) => {
@@ -269,7 +311,17 @@ export default function DraggableAnywhere() {
             }
         };
 
-        const handleMouseUp = () => {
+        const handleMouseUp = (e: MouseEvent) => {
+            if (!containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const mouseX = e.clientX - containerRect.left;
+            
+            if (draggingBox && mouseX < 300) {
+                setBoxes((prev) => prev.filter(boxStack => !boxStack.isDragging))
+                setDropTargetBox(null);
+                setDraggingBox(null);
+                return;
+            }
             if (dropTargetBox && draggingBox) {
                 setBoxes((prevBoxes) => {
                     if (dropTargetBox.type === BoxType.EMPTY_SUB_BLOCK) {
@@ -603,22 +655,93 @@ export default function DraggableAnywhere() {
                 fontFamily: "system-ui, -apple-system, sans-serif",
             }}
         >
-            {/* Title area */}
-            <div style={{
-                position: "absolute",
-                top: 20,
-                left: 20,
-                fontSize: "18px",
-                fontWeight: "bold",
-                color: "#343a40"
-            }}>
-                Block Library
-            </div>
 
+            {/* display library */}
+            <div style={{
+                    position: "absolute",
+                    top: "0", 
+                    bottom: "0",
+                    left: "0",
+                    width: "400px",  
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    padding: "8px",
+                    backgroundColor: `rgb(233, 221, 206)`,
+                    borderRight: `1px solid #dee2e6`,
+                    direction: "rtl",
+                }}>
+                <div style= {{direction: "ltr"}}>
+                {/* Title area */}
+                <div style={{
+                    position: "absolute",
+                    top: 20,
+                    left: 20,
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: "#343a40"
+                }}>
+                    Block Library
+                </div>
+                {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
+                // Skip rendering empty sub blocks directly - they're rendered inside their parent blocks
+                if (box.type === BoxType.EMPTY_SUB_BLOCK) return null;
+                if (!box.isOriginal) return null;
+
+                const isDragging = boxes.some(boxStack2 => 
+                    boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging);
+                const isSubBlock = box.type === BoxType.SUB_BLOCK;
+                
+                return (
+                    <div
+                        key={box.id}
+                        ref={(el) => {
+                            boxRefs.current[box.id] = el;
+                        }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onMouseDown(e, box.id);
+                        }}
+                        style={{
+                            position: "absolute",
+                            left: box.x + box.indentation * BOX_HEIGHT,
+                            top: box.y + BOX_HEIGHT * box.verticalOffset,
+                            height: isSubBlock ? SUB_BLOCK_HEIGHT : BOX_HEIGHT,
+                            minWidth: isSubBlock ? "auto" : BOX_WIDTH,
+                            backgroundColor: box.color,
+                            cursor: isDragging ? "grabbing" : "grab",
+                            userSelect: "none",
+                            zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
+                            borderRadius: isSubBlock ? `${BOX_RADIUS}px` : `${BOX_RADIUS/2}px ${BOX_RADIUS}px ${BOX_RADIUS}px ${BOX_RADIUS/2}px`,
+                            boxShadow: isDragging ? DRAGGING_SHADOW : BOX_SHADOW,
+                            transition: "box-shadow 0.2s",
+                            display: "flex",
+                            alignItems: "center",
+                            paddingLeft: isSubBlock ? 8 : 12,
+                            paddingRight: 12,
+                            fontWeight: isSubBlock ? 400 : 500,
+                            fontSize: isSubBlock ? "14px" : "15px",
+                            border: box.isOriginal ? `2px solid ${box.color === COLORS.EMPTY ? "#ced4da" : box.color}` : "none",
+                            borderLeftWidth: isSubBlock ? 2 : 0,
+                        }}
+                    >
+                        <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            height: "100%",
+                            gap: "2px",
+                        }}>
+                            {renderContents(box)}
+                        </div>
+                    </div>
+                );
+            })}
+            </div>
+            </div>
             {/* Display boxes */}
             {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
                 // Skip rendering empty sub blocks directly - they're rendered inside their parent blocks
                 if (box.type === BoxType.EMPTY_SUB_BLOCK) return null;
+                if (box.isOriginal) return null;
 
                 const isDragging = boxes.some(boxStack2 => 
                     boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging);
