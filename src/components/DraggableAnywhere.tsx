@@ -29,14 +29,34 @@ const BoxType = {
 
 function getEmptySubBlock(id: number) {
     return {
-        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "white", indentation: 0, type: BoxType.EMPTY_SUB_BLOCK, contents: [],
+        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: BoxType.EMPTY_SUB_BLOCK, contents: [],
     }
 }
 
-const BOX_HEIGHT = 30;
-const BOX_WIDTH = 140;
-const LIBRARY_Y_SPACING = 50;
+// Constants for styling
+const BOX_HEIGHT = 34;
+const BOX_WIDTH = 160;
+const LIBRARY_Y_SPACING = 60;
 const LIBRARY_X_SPACING = 50;
+const BOX_RADIUS = 12;
+const SUB_BLOCK_HEIGHT = 28;
+const EMPTY_BLOCK_WIDTH = 40;
+
+// Box shadow for depth
+const BOX_SHADOW = "0 2px 4px rgba(0,0,0,0.1)";
+const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
+
+// Colors with better contrast
+const COLORS = {
+    SKYBLUE: "#4dabf7",
+    LIGHTGREEN: "#51cf66",
+    CORAL: "#ff922b",
+    PURPLE: "#9775fa",
+    FOREST: "#37b24d",
+    EMPTY: "#e9ecef",
+    DROP_TARGET: "#ced4da",
+    BACKGROUND: "#f8f9fa",
+}
 
 const getContents = (box: Box): (string | Box)[] => {
     return box.contents.flatMap(content => {
@@ -94,14 +114,13 @@ export default function DraggableAnywhere() {
     const mouseUpHandlerRef = useRef<(() => void) | null>(null);
     const nextId = useRef(11);
 
-
-    // Box library definition
+    // Box library definition with improved colors
     const boxLibrary = [
-        {boxes: [{type: BoxType.BLOCK, id: 0, contents: ["Display", getEmptySubBlock(6)],}], color: "skyblue"},
-        {boxes: [{type: BoxType.WRAPPER, id: 1, contents: ["IF", getEmptySubBlock(7)]}, {type: BoxType.END_WRAPPER, id: 2, contents: ["ENDIF"]}], color: "lightgreen"},
-        {boxes: [{type: BoxType.BLOCK, id: 3, contents: ["GET", getEmptySubBlock(8)]}], color: "coral"},
-        {boxes: [{type: BoxType.SUB_BLOCK, id: 4, contents: ["var"]}], color: "mediumpurple"},
-        {boxes: [{type: BoxType.SUB_BLOCK, id: 5, contents: ["(", getEmptySubBlock(9), "+", getEmptySubBlock(10), ")"]}], color: "forestgreen"},
+        {boxes: [{type: BoxType.BLOCK, id: 0, contents: ["Display", getEmptySubBlock(6)],}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BoxType.WRAPPER, id: 1, contents: ["IF", getEmptySubBlock(7)]}, {type: BoxType.END_WRAPPER, id: 2, contents: ["ENDIF"]}], color: COLORS.LIGHTGREEN},
+        {boxes: [{type: BoxType.BLOCK, id: 3, contents: ["GET", getEmptySubBlock(8)]}], color: COLORS.CORAL},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: 4, contents: ["var"]}], color: COLORS.PURPLE},
+        {boxes: [{type: BoxType.SUB_BLOCK, id: 5, contents: [getEmptySubBlock(9), "+", getEmptySubBlock(10)]}], color: COLORS.FOREST},
     ]
 
     // library of Boxes auto dynamically assigned to Stacks
@@ -125,7 +144,7 @@ export default function DraggableAnywhere() {
 
     const [boxes, setBoxes] = useState<BoxStack[]>(originalBoxes);
     const [grabOffset, setGrabOffset] = useState({ x: 0, y: 0 });
-    const [DropTargetBox, setDropTargetBox] = useState<Box | null>(null);
+    const [dropTargetBox, setDropTargetBox] = useState<Box | null>(null);
     const [draggingBox, setDraggingBox] = useState<Box | null>(null);
 
     useEffect(() => {
@@ -251,9 +270,9 @@ export default function DraggableAnywhere() {
         };
 
         const handleMouseUp = () => {
-            if (DropTargetBox && draggingBox) {
+            if (dropTargetBox && draggingBox) {
                 setBoxes((prevBoxes) => {
-                    if (DropTargetBox.type === BoxType.EMPTY_SUB_BLOCK) {
+                    if (dropTargetBox.type === BoxType.EMPTY_SUB_BLOCK) {
                         // Only allow dropping subBlocks into emptySubBlocks
                         if (draggingBox.type !== BoxType.SUB_BLOCK) {
                             return prevBoxes.map(boxStack => ({
@@ -267,7 +286,7 @@ export default function DraggableAnywhere() {
                             ...boxStack,
                             boxes: boxStack.boxes.map((box) => ({
                                 ...box,
-                                contents: replaceContents(box.contents, DropTargetBox.id, draggingBox)
+                                contents: replaceContents(box.contents, dropTargetBox.id, draggingBox)
                             }))
                         })).filter((boxStack) => !boxStack.isDragging);
                     } else {
@@ -283,13 +302,13 @@ export default function DraggableAnywhere() {
                         if (!draggingBoxStack) return prevBoxes;
 
                         const targetBoxStackIndex = prevBoxes.findIndex((boxStack) =>
-                            boxStack.boxes.some((box) => box.id === DropTargetBox.id)
+                            boxStack.boxes.some((box) => box.id === dropTargetBox.id)
                         );
                         if (targetBoxStackIndex === -1) return prevBoxes;
 
                         const targetBoxStack = prevBoxes[targetBoxStackIndex];
                         const targetIndex = targetBoxStack.boxes.findIndex(
-                            (box) => box.id === DropTargetBox.id
+                            (box) => box.id === dropTargetBox.id
                         );
 
                         const newBoxes = [...prevBoxes];
@@ -302,10 +321,10 @@ export default function DraggableAnywhere() {
                             ...beforeTarget,
                             ...draggingBoxStack.boxes.map((box, index) => ({
                                 ...box,
-                                x: DropTargetBox.x,
-                                y: DropTargetBox.y + BOX_HEIGHT * (index + 1),
+                                x: dropTargetBox.x,
+                                y: dropTargetBox.y + BOX_HEIGHT * (index + 1),
                                 verticalOffset: 0,
-                                indentation: box.indentation + DropTargetBox.indentation + (DropTargetBox.type === BoxType.WRAPPER ? 1 : 0),
+                                indentation: box.indentation + dropTargetBox.indentation + (dropTargetBox.type === BoxType.WRAPPER ? 1 : 0),
                             })),
                             ...afterTarget.map((box) => ({
                                 ...box,
@@ -355,7 +374,7 @@ export default function DraggableAnywhere() {
                 document.removeEventListener("mouseup", mouseUpHandlerRef.current);
             }
         };
-    }, [grabOffset, boxes, DropTargetBox, draggingBox]);
+    }, [grabOffset, boxes, dropTargetBox, draggingBox]);
 
     const onMouseDown = (e: React.MouseEvent, id: number) => {
         const ref = boxRefs.current[id];
@@ -383,7 +402,7 @@ export default function DraggableAnywhere() {
                 })
             }
         })
-        // const draggingBox = boxes.flatMap((boxStack) => boxStack.boxes).find((box) => box.id === id);
+
         if (!draggingBox) {
             setDraggingBox(null);
             return;
@@ -496,7 +515,6 @@ export default function DraggableAnywhere() {
                     ),
                 }));
 
-                // if (!containerRef.current) return;
                 const containerRect = containerRef.current.getBoundingClientRect();
             
                 const boxX = e.clientX - containerRect.left - grabOffset.x;
@@ -511,40 +529,59 @@ export default function DraggableAnywhere() {
         return box.contents.map((content, i) => {
             if (typeof content === "string") {
                 return (
-                    <span key={`text-${box.id}-${i}`}>
+                    <span 
+                        key={`text-${box.id}-${i}`}
+                        style={{
+                            fontWeight: box.type === BoxType.SUB_BLOCK || box.type === BoxType.EMPTY_SUB_BLOCK ? 400 : 500,
+                            userSelect: "none",
+                            fontSize: box.type === BoxType.SUB_BLOCK ? "14px" : "15px",
+                            padding: "0 4px"
+                        }}
+                    >
                         {content}
                     </span>
                 );
             } else {
                 // For nested Box objects
+                const isEmptySubBlock = content.type === BoxType.EMPTY_SUB_BLOCK;
                 return (
                     <div
                         key={`box-${content.id}`}
                         ref={(el) => { boxRefs.current[content.id] = el; }}
                         onMouseDown={(e) => {
-                            if (content.type !== BoxType.EMPTY_SUB_BLOCK) {
-                            e.stopPropagation();
-                            onMouseDown(e, content.id);}}}
+                            if (!isEmptySubBlock) {
+                                e.stopPropagation();
+                                onMouseDown(e, content.id);
+                            }
+                        }}
                         style={{
-                            borderRadius: 10,
-                            minWidth: BOX_HEIGHT,
-                            height: BOX_HEIGHT - (box.type === BoxType.SUB_BLOCK ? 10 : 0),
-                            backgroundColor:
-                                DropTargetBox &&
-                                DropTargetBox.id === content.id &&
-                                DropTargetBox.type === BoxType.EMPTY_SUB_BLOCK
-                                    ? "lightgrey"
-                                    : content.color,
+                            borderRadius: BOX_RADIUS,
+                            width: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : "auto",
+                            minWidth: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : BOX_HEIGHT,
+                            height: content.type === BoxType.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
+                            backgroundColor: 
+                                dropTargetBox &&
+                                dropTargetBox.id === content.id &&
+                                isEmptySubBlock
+                                    ? COLORS.DROP_TARGET
+                                    : isEmptySubBlock ? COLORS.EMPTY : content.color,
+                            boxShadow: isEmptySubBlock ? "none" : 
+                                (boxes.some(boxStack => boxStack.isDragging && boxStack.boxes.some(b => b.id === content.id)) 
+                                    ? DRAGGING_SHADOW 
+                                    : BOX_SHADOW),
                             flexShrink: 0,
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: '0 5px',
-                            margin: box.type === BoxType.SUB_BLOCK ? '0 2px' : 0,
-                            cursor: 'pointer'
+                            padding: '0 8px',
+                            margin: '0 4px',
+                            cursor: isEmptySubBlock ? 'default' : 'pointer',
+                            border: isEmptySubBlock ? "1.7px dashed #adb5bd" : "none",
+                            transition: "background-color 0.2s, box-shadow 0.2s",
+                            fontWeight: content.type === BoxType.SUB_BLOCK ? 400 : 500,
                         }}
                     >
-                        {content.type === BoxType.EMPTY_SUB_BLOCK 
+                        {isEmptySubBlock 
                             ? "..." 
                             : renderContents(content)
                         }
@@ -562,53 +599,91 @@ export default function DraggableAnywhere() {
                 width: "100vw",
                 height: "100vh",
                 overflow: "hidden",
-                backgroundColor: "#f8f9fa",
+                backgroundColor: COLORS.BACKGROUND,
+                fontFamily: "system-ui, -apple-system, sans-serif",
             }}
         >
+            {/* Title area */}
+            <div style={{
+                position: "absolute",
+                top: 20,
+                left: 20,
+                fontSize: "18px",
+                fontWeight: "bold",
+                color: "#343a40"
+            }}>
+                Block Library
+            </div>
+
+            {/* Display boxes */}
             {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
-                return <div
-                    key={box.id}
-                    ref={(el) => {
-                        boxRefs.current[box.id] = el;
-                    }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        onMouseDown(e, box.id);}}
-                    style={{
-                        position: "absolute",
-                        left: box.x + box.indentation * BOX_HEIGHT,
-                        top: box.y + BOX_HEIGHT * box.verticalOffset,
-                        height: BOX_HEIGHT * (box.type === BoxType.WRAPPER ? 1 : 1) - (box.type === BoxType.SUB_BLOCK ? 10 : 0),
-                        backgroundColor: box.color,
-                        cursor: boxes.some(boxStack2 => boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging)? "grabbing" : "grab",
-                        userSelect: "none",
-                        zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
-                        paddingLeft: 5,
-                        borderRadius: box.type !== BoxType.SUB_BLOCK? "0 10px 10px 0": "10px",
-                    }}
-                >
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        height: "100%",
-                        paddingRight: 10,
-                    }}>
-                        {renderContents(box)}
+                // Skip rendering empty sub blocks directly - they're rendered inside their parent blocks
+                if (box.type === BoxType.EMPTY_SUB_BLOCK) return null;
+
+                const isDragging = boxes.some(boxStack2 => 
+                    boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging);
+                const isSubBlock = box.type === BoxType.SUB_BLOCK;
+                
+                return (
+                    <div
+                        key={box.id}
+                        ref={(el) => {
+                            boxRefs.current[box.id] = el;
+                        }}
+                        onMouseDown={(e) => {
+                            e.stopPropagation();
+                            onMouseDown(e, box.id);
+                        }}
+                        style={{
+                            position: "absolute",
+                            left: box.x + box.indentation * BOX_HEIGHT,
+                            top: box.y + BOX_HEIGHT * box.verticalOffset,
+                            height: isSubBlock ? SUB_BLOCK_HEIGHT : BOX_HEIGHT,
+                            minWidth: isSubBlock ? "auto" : BOX_WIDTH,
+                            backgroundColor: box.color,
+                            cursor: isDragging ? "grabbing" : "grab",
+                            userSelect: "none",
+                            zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
+                            borderRadius: isSubBlock ? `${BOX_RADIUS}px` : `${BOX_RADIUS/2}px ${BOX_RADIUS}px ${BOX_RADIUS}px ${BOX_RADIUS/2}px`,
+                            boxShadow: isDragging ? DRAGGING_SHADOW : BOX_SHADOW,
+                            transition: "box-shadow 0.2s",
+                            display: "flex",
+                            alignItems: "center",
+                            paddingLeft: isSubBlock ? 8 : 12,
+                            paddingRight: 12,
+                            fontWeight: isSubBlock ? 400 : 500,
+                            fontSize: isSubBlock ? "14px" : "15px",
+                            border: box.isOriginal ? `2px solid ${box.color === COLORS.EMPTY ? "#ced4da" : box.color}` : "none",
+                            borderLeftWidth: isSubBlock ? 2 : 0,
+                        }}
+                    >
+                        <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            height: "100%",
+                            gap: "2px",
+                        }}>
+                            {renderContents(box)}
+                        </div>
                     </div>
-                </div>
+                );
             })}
-            {DropTargetBox && DropTargetBox.type !== BoxType.EMPTY_SUB_BLOCK && (
+
+            {/* Drop target indicator */}
+            {dropTargetBox && dropTargetBox.type !== BoxType.EMPTY_SUB_BLOCK && (
                 <div
                     style={{
                         position: "absolute",
-                        left: DropTargetBox.x + DropTargetBox.indentation * BOX_HEIGHT + (DropTargetBox.type === BoxType.WRAPPER ? BOX_HEIGHT : 0),
-                        top: DropTargetBox.y + BOX_HEIGHT,
+                        left: dropTargetBox.x + dropTargetBox.indentation * BOX_HEIGHT + (dropTargetBox.type === BoxType.WRAPPER ? BOX_HEIGHT : 0),
+                        top: dropTargetBox.y + BOX_HEIGHT,
                         width: BOX_WIDTH,
-                        height: BOX_HEIGHT,
-                        backgroundColor: "rgba(128, 128, 128, 0.5)",
+                        height: 4,
+                        backgroundColor: "#4c6ef5",
                         pointerEvents: "none",
-                        zIndex: DropTargetBox.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === DropTargetBox.id)) + 1,
+                        zIndex: dropTargetBox.indentation + 100 * boxes.findIndex(boxStack => 
+                            boxStack.boxes.some(b => b.id === dropTargetBox.id)) + 1,
+                        borderRadius: 2,
+                        boxShadow: "0 0 4px rgba(76, 110, 245, 0.5)",
                     }}
                 ></div>
             )}
