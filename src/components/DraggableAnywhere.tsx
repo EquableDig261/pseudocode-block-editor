@@ -43,7 +43,6 @@ const getContents = (box: Box): (string | Box)[] => {
         if (typeof content === "string") {
             return [content];
         } else {
-            // content is a Box, so return [the box itself, ...its contents recursively]
             return [content, ...getContents(content)];
         }
     });
@@ -68,6 +67,25 @@ const replaceContents = (contents: (string | Box)[], dropTargetId: number, repla
         }
     })
 }
+
+const removeSubBox = (targetId: number, box: Box, newEmptyBoxId: number): Box => {
+    if (box.id === targetId) {
+        return getEmptySubBlock(newEmptyBoxId);
+    }
+    return {...box, contents: box.contents.map((content) => {
+        if (typeof content === "string") return content;
+        return removeSubBox(targetId, content, newEmptyBoxId);
+    })}
+}
+
+const boxIsASubBoxOf = (target: Box, box: Box): boolean => {
+    for (const content of box.contents) {
+        if (typeof content === "string") continue;
+        if (content.id === target.id) return true;
+        if (boxIsASubBoxOf(content, target)) return true;
+    }
+    return false;
+};
 
 export default function DraggableAnywhere() {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +131,6 @@ export default function DraggableAnywhere() {
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
             if (!containerRef.current) return;
-
             const containerRect = containerRef.current.getBoundingClientRect();
 
             const boxX = e.clientX - containerRect.left - grabOffset.x;
@@ -158,6 +175,7 @@ export default function DraggableAnywhere() {
                             (draggedBox) => draggedBox.id === box.id
                         );
                         if (beingDragged || box.isOriginal) return;
+                        if (box.type === BoxType.SUB_BLOCK) return;
 
                         const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BoxType.WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
                                                 Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseY) < BOX_HEIGHT / 2
@@ -175,6 +193,7 @@ export default function DraggableAnywhere() {
                     boxStack.boxes.forEach((box) => {
                         getContents(box).forEach(content => {
                             if(box.isOriginal) return;
+                            if(boxIsASubBoxOf(box, draggingBox)) return;
                             if (
                                 typeof content !== "string" &&
                                 content.type === BoxType.EMPTY_SUB_BLOCK &&
@@ -348,104 +367,141 @@ export default function DraggableAnywhere() {
 
         setGrabOffset({ x: offsetX, y: offsetY });
 
+        let draggingBox : Box | null = null;
         // find the box that is currently selected
-        const draggingBox = boxes.flatMap((boxStack) => boxStack.boxes).find((box) => box.id === id);
+        boxes.flatMap((boxStack) => boxStack.boxes).forEach((box) => {
+            if (box.id === id) {
+                draggingBox = box;
+                return;
+            }
+            else {
+                getContents(box).forEach((content) => {
+                    if (typeof content !== "string" && content.id === id) {
+                        draggingBox = content;
+                        return;
+                    }
+                })
+            }
+        })
+        // const draggingBox = boxes.flatMap((boxStack) => boxStack.boxes).find((box) => box.id === id);
         if (!draggingBox) {
             setDraggingBox(null);
             return;
         }
-        
+
         const draggingBoxStack = boxes.find(boxStack => boxStack.boxes.some(box => box.id === id));
-        if (!draggingBoxStack) return;
-        
-        if (draggingBox.isOriginal) {
-            const clone: BoxStack = {
-                boxes: draggingBoxStack.boxes.map((box2) => {
-                    return {
-                        ...box2, 
-                        isOriginal: false, 
-                        id: nextId.current++, 
-                        contents: box2.contents.map((content) => 
-                            typeof content !== "string" && content.type === BoxType.EMPTY_SUB_BLOCK 
-                                ? getEmptySubBlock(nextId.current++) 
-                                : content
-                        )
-                    }
-                }),
-                isDragging: true,
-            };
-            setDraggingBox(clone.boxes.find(box2 => box2.type === draggingBox.type) || clone.boxes[0]);
-            setBoxes((prev) => [...prev, clone]);
-        } else {
-            setDraggingBox(draggingBox);
-            const boxStackIndex = boxes.findIndex((boxStack) =>
-                boxStack.boxes.some((box) => box.id === id)
-            );
-        
-            if (boxStackIndex === -1) return;
-            
-            setBoxes((prev) => {
-                const newBoxes = [...prev];
-                const originalBoxStack = { ...newBoxes[boxStackIndex] };
-                const boxIndex = originalBoxStack.boxes.findIndex((box) => box.id === id);
 
-                let remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex);
-                let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
-
-                let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-                let startIndex = boxIndex;
-                
-                if (draggingBox.type === BoxType.WRAPPER) {
-                    endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-                }
-                else if (draggingBox.type === BoxType.END_WRAPPER) {
-                    startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => box.indentation === draggingBox.indentation && box.type === BoxType.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
-                    endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
-                }
-
-                if (endIndex === -2) {
-                    endIndex = originalBoxStack.boxes.length - 1
-                }
-                draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
-                remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
-
-                if (remainingBoxes.length === 0) {
-                    newBoxes.splice(boxStackIndex, 1);
-                }
-                else {
-                    newBoxes[boxStackIndex] = {
-                        ...originalBoxStack,
-                        boxes: remainingBoxes.map((box, index) => { 
-                            return {
-                                ...box, 
-                                y: remainingBoxes[0].y + index * BOX_HEIGHT
-                            }
-                        }),
-                    };
-                }
-                
-                // calculate indentation on each box
-                let currentIndentation = 0;
-                let previousIndentation = 0;
-
-                const newBoxStack: BoxStack = {
-                    boxes: draggedBoxes.map((box) => {
-                        previousIndentation = currentIndentation;
-                        if (box.type === BoxType.WRAPPER) {
-                            currentIndentation += 1;
-                        } else if (box.type === BoxType.END_WRAPPER) {
-                            currentIndentation -= 1;
-                            previousIndentation -= 1;
-                        }
+        if (draggingBoxStack) {        
+            if (draggingBox.isOriginal) {
+                const clone: BoxStack = {
+                    boxes: draggingBoxStack.boxes.map((box2) => {
                         return {
-                            ...box, 
-                            x: box.x + draggedBoxes[0].indentation * BOX_HEIGHT, 
-                            indentation: previousIndentation
+                            ...box2, 
+                            isOriginal: false, 
+                            id: nextId.current++, 
+                            contents: box2.contents.map((content) => 
+                                typeof content !== "string" && content.type === BoxType.EMPTY_SUB_BLOCK 
+                                    ? getEmptySubBlock(nextId.current++) 
+                                    : content
+                            )
                         }
                     }),
                     isDragging: true,
                 };
-                newBoxes.push(newBoxStack);
+                setDraggingBox(clone.boxes.find(box2 => box2.type === draggingBox.type) || clone.boxes[0]);
+                setBoxes((prev) => [...prev, clone]);
+            } else {
+                setDraggingBox(draggingBox);
+                const boxStackIndex = boxes.findIndex((boxStack) =>
+                    boxStack.boxes.some((box) => box.id === id)
+                );
+            
+                if (boxStackIndex === -1) return;
+                
+                setBoxes((prev) => {
+                    const newBoxes = [...prev];
+                    const originalBoxStack = { ...newBoxes[boxStackIndex] };
+                    const boxIndex = originalBoxStack.boxes.findIndex((box) => box.id === id);
+
+                    let remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex);
+                    let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
+
+                    let endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+                    let startIndex = boxIndex;
+                    
+                    if (draggingBox.type === BoxType.WRAPPER) {
+                        endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+                    }
+                    else if (draggingBox.type === BoxType.END_WRAPPER) {
+                        startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => box.indentation === draggingBox.indentation && box.type === BoxType.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
+                        endIndex = originalBoxStack.boxes.findIndex((box, index) => box.indentation < draggingBox.indentation && index > boxIndex) - 1;
+                    }
+
+                    if (endIndex === -2) {
+                        endIndex = originalBoxStack.boxes.length - 1
+                    }
+                    draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
+                    remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
+
+                    if (remainingBoxes.length === 0) {
+                        newBoxes.splice(boxStackIndex, 1);
+                    }
+                    else {
+                        newBoxes[boxStackIndex] = {
+                            ...originalBoxStack,
+                            boxes: remainingBoxes.map((box, index) => { 
+                                return {
+                                    ...box, 
+                                    y: remainingBoxes[0].y + index * BOX_HEIGHT
+                                }
+                            }),
+                        };
+                    }
+                    
+                    // calculate indentation on each box
+                    let currentIndentation = 0;
+                    let previousIndentation = 0;
+
+                    const newBoxStack: BoxStack = {
+                        boxes: draggedBoxes.map((box) => {
+                            previousIndentation = currentIndentation;
+                            if (box.type === BoxType.WRAPPER) {
+                                currentIndentation += 1;
+                            } else if (box.type === BoxType.END_WRAPPER) {
+                                currentIndentation -= 1;
+                                previousIndentation -= 1;
+                            }
+                            return {
+                                ...box, 
+                                x: box.x + draggedBoxes[0].indentation * BOX_HEIGHT, 
+                                indentation: previousIndentation
+                            }
+                        }),
+                        isDragging: true,
+                    };
+                    newBoxes.push(newBoxStack);
+                    return newBoxes;
+                });
+            }
+        }
+        else {
+            setDraggingBox(draggingBox);
+            setBoxes((prev) => {
+                if (!draggingBox) return prev;
+            
+                const newBoxes = prev.map((boxStack) => ({
+                    ...boxStack,
+                    boxes: boxStack.boxes.map((box) =>
+                        removeSubBox(draggingBox.id, box, nextId.current++)
+                    ),
+                }));
+
+                // if (!containerRef.current) return;
+                const containerRect = containerRef.current.getBoundingClientRect();
+            
+                const boxX = e.clientX - containerRect.left - grabOffset.x;
+                const boxY = e.clientY - containerRect.top - grabOffset.y;
+                newBoxes.push({boxes: [{...draggingBox, x: boxX, y: boxY}], isDragging: true})
                 return newBoxes;
             });
         }
@@ -465,6 +521,10 @@ export default function DraggableAnywhere() {
                     <div
                         key={`box-${content.id}`}
                         ref={(el) => { boxRefs.current[content.id] = el; }}
+                        onMouseDown={(e) => {
+                            if (content.type !== BoxType.EMPTY_SUB_BLOCK) {
+                            e.stopPropagation();
+                            onMouseDown(e, content.id);}}}
                         style={{
                             borderRadius: 10,
                             minWidth: BOX_HEIGHT,
@@ -511,7 +571,9 @@ export default function DraggableAnywhere() {
                     ref={(el) => {
                         boxRefs.current[box.id] = el;
                     }}
-                    onMouseDown={(e) => onMouseDown(e, box.id)}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onMouseDown(e, box.id);}}
                     style={{
                         position: "absolute",
                         left: box.x + box.indentation * BOX_HEIGHT,
