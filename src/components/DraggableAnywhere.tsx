@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import './DraggableAnywhere.css';
 
 type Box = {
   id: number;
@@ -13,18 +14,26 @@ type Box = {
   type: string;
   contents: (Box | string)[];
   returnType: string | null;
-  expectedReturnType: string | null;
+  acceptedReturnTypes: string[];
 };
 
 type BoxStack = {
-  boxes: Box[];
+  boxes: (Box)[];
   isDragging: boolean;
 };
 
 
-const getEmptySubBlock = (id: number, expectedType: string | null) : Box => {
+const getEmptySubBlock = (id: number, acceptedTypes: string[]) : Box => {
     return {
-        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: BOX_TYPE.EMPTY_SUB_BLOCK, contents: [], returnType: expectedType, expectedReturnType: expectedType
+        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: BOX_TYPE.EMPTY_SUB_BLOCK, contents: [], returnType: null, acceptedReturnTypes: acceptedTypes
+    }
+}
+
+const getEmptyInputBlock = (id: number, returnType : string) : Box => {
+    const type =  (returnType === RETURN_TYPE.NUMBER) ? BOX_TYPE.NUM_INPUT : (returnType === RETURN_TYPE.STRING) ? BOX_TYPE.TEXT_INPUT : BOX_TYPE.BOOL_INPUT;
+    const contents = (returnType === RETURN_TYPE.NUMBER || returnType === RETURN_TYPE.STRING) ? "" : "true";
+    return {
+        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: type, contents: [contents], returnType: null, acceptedReturnTypes: []
     }
 }
 
@@ -46,7 +55,7 @@ const RETURN_TYPE = {
     STRING: "STRING",
     BOOLEAN: "BOOLEAN",
     VARIABLE: "VARIABLE",
-    ANY: "ANY",
+    ANY: ["VARIABLE", "NUMBER", "STRING", "BOOLEAN"],
 }
 
 const BOX_TYPE = {
@@ -55,6 +64,9 @@ const BOX_TYPE = {
     END_WRAPPER: "END_WRAPPER",
     EMPTY_SUB_BLOCK: "EMPTY_SUB_BLOCK",
     SUB_BLOCK: "SUB_BLOCK",
+    TEXT_INPUT: "TEXT_INPUT",
+    NUM_INPUT: "NUM_INPUT",
+    BOOL_INPUT: "BOOL_INPUT",
 }
 // Colors with better contrast
 const COLORS = {
@@ -95,7 +107,7 @@ const replaceContents = (contents: (string | Box)[], dropTargetId: number, repla
                 x: 0,
                 y: 0,
                 indentation: 0,
-                expectedReturnType: content.expectedReturnType,
+                acceptedReturnTypes: content.acceptedReturnTypes,
             };
         }
         return {
@@ -107,7 +119,7 @@ const replaceContents = (contents: (string | Box)[], dropTargetId: number, repla
 
 const removeSubBox = (targetId: number, box: Box, newEmptyBoxId: number, newEmptyBoxType: string | null): Box => {
     if (box.id === targetId) {
-        return getEmptySubBlock(newEmptyBoxId, box.expectedReturnType ?? newEmptyBoxType);
+        return getEmptySubBlock(newEmptyBoxId, box.acceptedReturnTypes ?? newEmptyBoxType);
     }
     return {...box, contents: box.contents.map((content) => {
         if (typeof content === "string") return content;
@@ -124,14 +136,60 @@ const boxIsASubBoxOf = (target: Box, box: Box): boolean => {
     return false;
 };
 
+const recurseUpdateInputBox = (targetId : number, contents: string, boxes : (Box | string)[]) : (Box | string)[] => {
+    return boxes.map((content) => {
+        if (typeof content === "string") {
+            return content;
+        }
+        if (targetId === content.id) {
+            return {
+                ...content,
+                contents:[contents]
+            };
+        }
+        return {
+            ...content,
+            contents: recurseUpdateInputBox(targetId, contents, content.contents)
+        }
+    })
+}
+
+const updateInputBox = (boxes: BoxStack[], targetId: number, contents: string) : (BoxStack[]) => {
+    return boxes.map((boxStack) => ({
+        ...boxStack,
+        boxes: recurseUpdateInputBox(targetId, contents, boxStack.boxes),
+      } as BoxStack));
+}
+
+const extractPseudoCode = (boxes : BoxStack[]) => {
+    boxes = boxes.filter((boxStack) => !boxStack.boxes.some(box => box.isOriginal));
+    return boxes.map((boxStack) => {
+        boxStack.boxes.map((box) => {
+            return getText(box).reduce((prev, cur) => prev + " " + cur)
+        })
+    })
+}
+
+const getText = (box: Box) : string[]  => {
+    return box.contents.flatMap((content) => {
+        if (typeof content === "string") {
+            return [content];
+        }
+        return getText(content);
+    })
+}
+
 export default function DraggableAnywhere() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const boxRefs = useRef<{ [key: number]: HTMLDivElement | null }>({});
+    const boxRefs = useRef<{ [key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null }>({});
     const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
     const mouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
     let libId = 0;
-    const emptyLibSubBlock = (subBoxType: string) => {
-        return getEmptySubBlock(libId++, subBoxType);
+    const emptyLibSubBlock = (subBoxTypes: string[]) => {
+        return getEmptySubBlock(libId++, subBoxTypes);
+    }
+    const inputLibSubBlock = (type: string) => {
+        return getEmptyInputBlock(libId++, type);
     }
     
     // Define the library box type to include returnType
@@ -145,41 +203,44 @@ export default function DraggableAnywhere() {
     const boxLibrary: { boxes: LibraryBox[]; color: string; }[] = [        
         // Loops / Wrappers light yellow ig:
         {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["BEGIN"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["END"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["IF",  emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDIF"], returnType: null},], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["WHILE",  emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDWHILE"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["REPEAT"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["UNTIL", emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["CASEWHERE",  emptyLibSubBlock(RETURN_TYPE.VARIABLE)], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDCASE"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["FOR",  emptyLibSubBlock(RETURN_TYPE.VARIABLE), "=", emptyLibSubBlock(RETURN_TYPE.NUMBER), "to", emptyLibSubBlock(RETURN_TYPE.NUMBER), "STEP", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["NEXT"], returnType: null}], color: COLORS.YELLOW},
+        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["IF",  emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDIF"], returnType: null},], color: COLORS.YELLOW},
+        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["WHILE",  emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDWHILE"], returnType: null}], color: COLORS.YELLOW},
+        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["REPEAT"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["UNTIL", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: null}], color: COLORS.YELLOW},
+        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["CASEWHERE",  emptyLibSubBlock([])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDCASE"], returnType: null}], color: COLORS.YELLOW},
+        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["FOR",  emptyLibSubBlock([]), "=", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "to", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "STEP", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["NEXT"], returnType: null}], color: COLORS.YELLOW},
         
         // Funcs - cyan
         {boxes: [{type: BOX_TYPE.BLOCK, contents: ["Display", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.CYAN},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["GET",  emptyLibSubBlock(RETURN_TYPE.VARIABLE)], returnType: null}], color: COLORS.CYAN},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["GET",  emptyLibSubBlock([])], returnType: null}], color: COLORS.CYAN},
         
         // updates - lBlue
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.VARIABLE), "=",  emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.SKYBLUE},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.VARIABLE), "+=",  emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: null}], color: COLORS.SKYBLUE},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.VARIABLE), "++"], returnType: null}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "=",  emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "+=",  emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: null}], color: COLORS.SKYBLUE},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "++"], returnType: null}], color: COLORS.SKYBLUE},
         
         // return Number - dblue
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "+", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "-", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "*", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "/", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "length of", emptyLibSubBlock(RETURN_TYPE.STRING)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "+", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "-", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "*", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "/", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "length of", emptyLibSubBlock([RETURN_TYPE.STRING])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
         
         // return string - lGreen
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.STRING), "+", emptyLibSubBlock(RETURN_TYPE.STRING)], returnType: RETURN_TYPE.STRING}], color: COLORS.LIGHT_GREEN},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING]), "+", emptyLibSubBlock([RETURN_TYPE.STRING])], returnType: RETURN_TYPE.STRING}], color: COLORS.LIGHT_GREEN},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.STRING)], returnType: RETURN_TYPE.STRING}], color: COLORS.LIGHT_GREEN},
         
         // return bool - orange oper
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.BOOLEAN), "AND", emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.BOOLEAN), "OR", emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "NOT", emptyLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.ANY), "==", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.ANY), "!=", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), ">", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), ">=", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "<", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock(RETURN_TYPE.NUMBER), "<=", emptyLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), "AND", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), "OR", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "NOT (", emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), ")"], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER]), "==", emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER]), "!=", emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), ">", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), ">=", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "<", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "<=", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
+        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
 
         // var - purple
     ]
@@ -199,7 +260,7 @@ export default function DraggableAnywhere() {
             type: b.type,
             contents: b.contents,
             returnType: b.returnType,
-            expectedReturnType: b.returnType,
+            acceptedReturnTypes: [],
         })),
         isDragging: false,
         };
@@ -326,7 +387,7 @@ export default function DraggableAnywhere() {
                                     relativeY >= rect.top &&
                                     relativeY <= rect.bottom
                                 ) {
-                                    if(content.expectedReturnType !== draggingBox.returnType && content.expectedReturnType !== RETURN_TYPE.ANY) return;
+                                    if(draggingBox.returnType && !content.acceptedReturnTypes.includes(draggingBox.returnType) && draggingBox.returnType !== RETURN_TYPE.VARIABLE) return;
                                     closestTarget = content;
                                 }
                             }
@@ -345,11 +406,12 @@ export default function DraggableAnywhere() {
         };
 
         const handleMouseUp = (e: MouseEvent) => {
+            extractPseudoCode(boxes);
             if (!containerRef.current) return;
             const containerRect = containerRef.current.getBoundingClientRect();
             const mouseX = e.clientX - containerRect.left;
             
-            if (draggingBox && mouseX < 300) {
+            if (draggingBox && mouseX < 400) {
                 setBoxes((prev) => prev.filter(boxStack => !boxStack.isDragging))
                 setDropTargetBox(null);
                 setDraggingBox(null);
@@ -505,7 +567,9 @@ export default function DraggableAnywhere() {
                             id: nextId.current++, 
                             contents: box2.contents.map((content) => 
                                 typeof content !== "string" && content.type === BOX_TYPE.EMPTY_SUB_BLOCK 
-                                    ? getEmptySubBlock(nextId.current++, content.returnType) 
+                                    ? getEmptySubBlock(nextId.current++, content.acceptedReturnTypes) :
+                                typeof content !== "string" && content.returnType && (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.BOOL_INPUT)
+                                    ? getEmptyInputBlock(nextId.current++, content.returnType)
                                     : content
                             )
                         }
@@ -624,11 +688,9 @@ export default function DraggableAnywhere() {
             const numOriginalBoxes = boxes.filter((boxStack) => boxStack.boxes.some((box) => box.isOriginal)).length;
             const heightOffset = boxes.map((boxStack) => {
                 if (boxStack.boxes.some(box => box.isOriginal)) {
-                    console.log("orig found");
                     return boxStack.boxes.length - 1;
                 }
             }).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0;
-            console.log("height offset", heightOffset);
             setBoxes((prev) => [...prev, {boxes: [{
                 id: nextId.current++,
                 x: LIBRARY_X_SPACING,
@@ -640,14 +702,32 @@ export default function DraggableAnywhere() {
                 type: BOX_TYPE.SUB_BLOCK,
                 contents: [newVar],
                 returnType: RETURN_TYPE.VARIABLE,
-                expectedReturnType: RETURN_TYPE.VARIABLE,
+                acceptedReturnTypes: [],
             }], isDragging: false}])
 
             setNewVariable("");
         }
     }
 
-    const renderContents = (box: Box) => {
+    const setInputBoxes = (targetId: number, value: string) => {
+        setBoxes((prev) => updateInputBox(prev, targetId, value))
+    }
+
+    const value = (contentId: number) => {
+        let result = "";
+        boxes.forEach((boxStack) => {
+          boxStack.boxes.forEach((box) => {
+            getContents(box).forEach((content2) => {
+              if (typeof content2 !== "string" && content2.id === contentId) {
+                result = content2.contents[0] as string;
+              }
+            });
+          });
+        });
+        return result;
+      };
+
+    const renderContents = (box: Box, isOriginal: boolean) => {
         return box.contents.map((content, i) => {
             if (typeof content === "string") {
                 return (
@@ -667,20 +747,84 @@ export default function DraggableAnywhere() {
             } else {
                 // For nested Box objects
                 const isEmptySubBlock = content.type === BOX_TYPE.EMPTY_SUB_BLOCK;
-                const borderColor = content.returnType === RETURN_TYPE.NUMBER ? COLORS.DARK_BLUE : content.returnType === RETURN_TYPE.STRING ? COLORS.LIGHT_GREEN : content.returnType === RETURN_TYPE.BOOLEAN ? COLORS.ORANGE : content.returnType === RETURN_TYPE.VARIABLE ? COLORS.PURPLE  : "#adb5bd"; 
-                return (
-                    <div
+                if (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT) {
+                    return (
+                        
+                        <input
+                        className="input-box"
                         key={`box-${content.id}`}
-                        ref={(el) => { boxRefs.current[content.id] = el; }}
+                        ref={(el) => {
+                            boxRefs.current[content.id] = el;
+                            if (el) {
+                                el.style.width = "40px";
+                                el.style.width = `${Math.max(el.scrollWidth, 40)}px`;
+                            }
+                        }}
+                        onChange={(e) => {
+                            if (!isOriginal) {
+                                setInputBoxes(content.id, e.target.value);
+                                const el = boxRefs.current[content.id];
+                                if (el) {
+                                    el.style.width = `${Math.max(el.scrollWidth, 40)}px`;
+                                }
+                            }
+                        }}
+                        type={content.type === BOX_TYPE.NUM_INPUT ? "number" : "text"}
                         onMouseDown={(e) => {
                             if (!isEmptySubBlock) {
                                 e.stopPropagation();
-                                onMouseDown(e, content.id);
                             }
                         }}
+                        value={value(content.id)}
                         style={{
+                            color: "black",
                             borderRadius: BOX_RADIUS,
-                            width: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : "auto",
+                            height: SUB_BLOCK_HEIGHT,
+                            backgroundColor:
+                                dropTargetBox &&
+                                dropTargetBox.id === content.id &&
+                                isEmptySubBlock
+                                    ? COLORS.DROP_TARGET
+                                    : isEmptySubBlock
+                                    ? COLORS.EMPTY
+                                    : content.color,
+                            boxShadow: isEmptySubBlock
+                                ? "none"
+                                : boxes.some(boxStack =>
+                                      boxStack.isDragging && boxStack.boxes.some(b => b.id === content.id)
+                                  )
+                                ? DRAGGING_SHADOW
+                                : BOX_SHADOW,
+                            flexShrink: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "0 8px",
+                            margin: "0 4px",
+                            transition: "background-color 0.2s, box-shadow 0.2s",
+                            fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
+                            appearance: "textfield", // Changed from "none" to "textfield" for better number input support
+                            MozAppearance: "textfield", // Firefox
+                            WebkitAppearance: "none", // WebKit browsers
+                            outline: "none",
+                            border: "none",
+                        }}
+                        />
+                    );
+                } else if (content.type === BOX_TYPE.BOOL_INPUT) {
+                    return (<select
+                        key={`box-${content.id}`}
+                        ref={(el) => { boxRefs.current[content.id] = el; }}
+                        onChange={(e) => (!isOriginal) ? setInputBoxes(content.id, e.target.value) : null}
+                        onMouseDown={(e) => {
+                            if (!isEmptySubBlock) {
+                                e.stopPropagation();
+                            }
+                        }}
+                        value={value(content.id)}
+                        style={{
+                            color:"black",
+                            borderRadius: BOX_RADIUS,
                             minWidth: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : BOX_HEIGHT,
                             height: content.type === BOX_TYPE.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
                             backgroundColor: 
@@ -699,17 +843,102 @@ export default function DraggableAnywhere() {
                             justifyContent: "center",
                             padding: '0 8px',
                             margin: '0 4px',
-                            border: isEmptySubBlock ? ("2.3px dashed " + borderColor) : "none",
                             transition: "background-color 0.2s, box-shadow 0.2s",
                             fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
                         }}
-                    >
-                        {isEmptySubBlock 
-                            ? "..." 
-                            : renderContents(content)
-                        }
-                    </div>
-                );
+                    ><option value="true">true</option>
+                    <option value="false">false</option>
+                    </select>)
+                }else {
+                    let leftColor = COLORS.DARK_BLUE;
+                    let rightColor = COLORS.DARK_BLUE;
+                    let topColor = COLORS.DARK_BLUE;
+                    let bottomColor = COLORS.DARK_BLUE;
+                    const accNum = content.acceptedReturnTypes.includes(RETURN_TYPE.NUMBER);
+                    const accBool = content.acceptedReturnTypes.includes(RETURN_TYPE.BOOLEAN);
+                    const accStr = content.acceptedReturnTypes.includes(RETURN_TYPE.STRING);
+                    if (accNum && accBool && accStr) {
+                        rightColor = COLORS.ORANGE;
+                        bottomColor = COLORS.LIGHT_GREEN;
+                        topColor = COLORS.PURPLE;
+                    }
+                    else if (accNum && accBool)  {
+                        rightColor = COLORS.ORANGE;
+                        bottomColor = COLORS.ORANGE;
+                    }
+                    else if (accNum && accStr) {
+                        leftColor = COLORS.LIGHT_GREEN;
+                        topColor = COLORS.LIGHT_GREEN;
+                    }
+                    else if (accBool && accStr) {
+                        rightColor = COLORS.ORANGE;
+                        bottomColor = COLORS.ORANGE;
+                        leftColor = COLORS.LIGHT_GREEN;
+                        topColor = COLORS.LIGHT_GREEN;
+                    } else if (accBool) {
+                        rightColor = COLORS.ORANGE;
+                        bottomColor = COLORS.ORANGE;
+                        leftColor = COLORS.ORANGE;
+                        topColor = COLORS.ORANGE;
+                    } else if (accStr) {
+                        rightColor = COLORS.LIGHT_GREEN;
+                        bottomColor = COLORS.LIGHT_GREEN;
+                        leftColor = COLORS.LIGHT_GREEN;
+                        topColor = COLORS.LIGHT_GREEN;
+                    } else if (!accNum) {
+                        rightColor = COLORS.PURPLE;
+                        bottomColor = COLORS.PURPLE;
+                        leftColor = COLORS.PURPLE;
+                        topColor = COLORS.PURPLE;
+                    }
+                    return (
+                        <div
+                            key={`box-${content.id}`}
+                            ref={(el) => { boxRefs.current[content.id] = el; }}
+                            onMouseDown={(e) => {
+                                if (!isEmptySubBlock) {
+                                    e.stopPropagation();
+                                    onMouseDown(e, content.id);
+                                }
+                            }}
+                            style={{
+                                borderRadius: BOX_RADIUS,
+                                width: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : "auto",
+                                minWidth: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : BOX_HEIGHT,
+                                height: content.type === BOX_TYPE.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
+                                backgroundColor: 
+                                    dropTargetBox &&
+                                    dropTargetBox.id === content.id &&
+                                    isEmptySubBlock
+                                        ? COLORS.DROP_TARGET
+                                        : isEmptySubBlock ? COLORS.EMPTY : content.color,
+                                boxShadow: isEmptySubBlock ? "none" : 
+                                    (boxes.some(boxStack => boxStack.isDragging && boxStack.boxes.some(b => b.id === content.id)) 
+                                        ? DRAGGING_SHADOW 
+                                        : BOX_SHADOW),
+                                flexShrink: 0,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: '0 8px',
+                                margin: '0 4px',
+                                borderWidth: isEmptySubBlock ? "2.3px" : 0,
+                                borderStyle: "dashed",
+                                borderTopColor: topColor,
+                                borderRightColor: rightColor,
+                                borderBottomColor: bottomColor,
+                                borderLeftColor: leftColor,
+                                transition: "background-color 0.2s, box-shadow 0.2s",
+                                fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
+                            }}
+                        >
+                            {isEmptySubBlock 
+                                ? "..." 
+                                : renderContents(content, box.isOriginal)
+                            }
+                        </div>
+                    );
+                }
             }
         });
     };
@@ -823,7 +1052,7 @@ export default function DraggableAnywhere() {
                             gap: "2px",
                             }}
                         >
-                            {renderContents(box)}
+                            {renderContents(box, box.isOriginal)}
                         </div>
                         </div>
                     );
@@ -886,7 +1115,6 @@ export default function DraggableAnywhere() {
                 <div style={{
                     top: LIBRARY_Y_SPACING * (boxes.filter((boxStack) => boxStack.boxes.some((box) => box.isOriginal)).length + 1) + (boxes.map((boxStack) => {
                         if (boxStack.boxes.some(box => box.isOriginal)) {
-                            console.log("orig found");
                             return boxStack.boxes.length - 1;
                         }
                     }).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT + (18 + LIBRARY_Y_SPACING),
@@ -948,7 +1176,7 @@ export default function DraggableAnywhere() {
                             height: "100%",
                             gap: "2px",
                         }}>
-                            {renderContents(box)}
+                            {renderContents(box, box.isOriginal)}
                         </div>
                     </div>
                 );
