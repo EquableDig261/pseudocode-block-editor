@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import './DraggableAnywhere.css';
+import { interpret } from "./Interpreter";
 
 type Box = {
   id: number;
@@ -163,11 +164,12 @@ const updateInputBox = (boxes: BoxStack[], targetId: number, contents: string) :
 
 const extractPseudoCode = (boxes : BoxStack[]) => {
     boxes = boxes.filter((boxStack) => !boxStack.boxes.some(box => box.isOriginal));
-    return boxes.map((boxStack) => {
-        boxStack.boxes.map((box) => {
+    const code = (boxes.map((boxStack) => {
+        return boxStack.boxes.map((box) => {
             return getText(box).reduce((prev, cur) => prev + " " + cur)
         })
-    })
+    }));
+    interpret(code);
 }
 
 const getText = (box: Box) : string[]  => {
@@ -406,7 +408,6 @@ export default function DraggableAnywhere() {
         };
 
         const handleMouseUp = (e: MouseEvent) => {
-            extractPseudoCode(boxes);
             if (!containerRef.current) return;
             const containerRect = containerRef.current.getBoundingClientRect();
             const mouseX = e.clientX - containerRect.left;
@@ -955,6 +956,32 @@ export default function DraggableAnywhere() {
                 fontFamily: "system-ui, -apple-system, sans-serif",
             }}
         >
+            <button
+            style={{
+                position: "absolute",
+                top: "20px",
+                right: "20px",
+                padding: "8px 16px",
+                backgroundColor: COLORS.PURPLE,
+                color: "white",
+                border: "none",
+                borderRadius: BOX_RADIUS,
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: "pointer",
+                boxShadow: BOX_SHADOW,
+                transition: "background-color 0.2s, transform 0.1s",
+                zIndex: 1000,
+            }}
+            onClick={() => {
+                // Add your button action here
+                extractPseudoCode(boxes);
+            }}
+            onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
+            onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+            >
+            Action
+            </button>
 
             {/* display library */}
             <div style={{
