@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import './DraggableAnywhere.css';
-import { interpret } from "./Interpreter";
+import { interpret } from "./interpreter";
 
 type Box = {
   id: number;
@@ -169,15 +169,27 @@ const extractPseudoCode = (boxes : BoxStack[]) => {
             return getText(box).reduce((prev, cur) => prev + " " + cur)
         })
     }));
-    interpret(code);
+    console.log(code);
+    // interpret(code);
 }
 
 const getText = (box: Box) : string[]  => {
     return box.contents.flatMap((content) => {
+        if (typeof content === "string" && box.returnType === RETURN_TYPE.VARIABLE) {
+            return ["var-" + content]
+        }
         if (typeof content === "string") {
             return [content];
         }
-        return getText(content);
+        if (content.type === BOX_TYPE.TEXT_INPUT) {
+            return [`"` + content.contents[0] + `"`];
+        }
+        if (content.type === BOX_TYPE.NUM_INPUT ||content.type === BOX_TYPE.BOOL_INPUT || (
+            typeof content.contents[0] !== "string" && (content.contents[0].type === BOX_TYPE.NUM_INPUT || content.contents[0].type === BOX_TYPE.TEXT_INPUT ||content.contents[0].type === BOX_TYPE.BOOL_INPUT )
+        )) {
+            return getText(content)
+        }
+        return ["(", ...getText(content), ")"];
     })
 }
 
@@ -569,8 +581,8 @@ export default function DraggableAnywhere() {
                             contents: box2.contents.map((content) => 
                                 typeof content !== "string" && content.type === BOX_TYPE.EMPTY_SUB_BLOCK 
                                     ? getEmptySubBlock(nextId.current++, content.acceptedReturnTypes) :
-                                typeof content !== "string" && content.returnType && (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.BOOL_INPUT)
-                                    ? getEmptyInputBlock(nextId.current++, content.returnType)
+                                typeof content !== "string" && box2.returnType && (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.BOOL_INPUT)
+                                    ? getEmptyInputBlock(nextId.current++, box2.returnType)
                                     : content
                             )
                         }
@@ -993,8 +1005,10 @@ export default function DraggableAnywhere() {
                     overflowY: "auto",
                     overflowX: "hidden",
                     padding: "8px",
-                    backgroundColor: `rgb(233, 221, 206)`,
-                    borderRight: `1px solid #dee2e6`,
+                    backgroundColor: `rgb(161, 161, 161)`,
+                    border: `4px solid rgb(0, 0, 0)`,
+                    borderTopRightRadius: "20px",
+                    borderBottomRightRadius: "20px",
                     direction: "rtl",
                 }}>
                 <div style= {{direction: "ltr"}}>
@@ -1004,14 +1018,14 @@ export default function DraggableAnywhere() {
                 <div
                     style={{
                     position: "absolute",
-                    top: 20,
+                    top: 0,
                     left: 20,
-                    fontSize: "18px",
+                    fontSize: "30px",
                     fontWeight: "bold",
                     color: "#343a40",
                     }}
                 >
-                    Block Library
+                    <u>Block Library</u>
                 </div>
 
                 {/* Render Library Boxes */}
