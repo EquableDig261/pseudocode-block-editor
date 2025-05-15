@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import './DraggableAnywhere.css';
-import { interpret } from "./interpreter";
 
 type Box = {
   id: number;
@@ -169,8 +168,6 @@ const extractPseudoCode = (boxes : BoxStack[]) => {
             return getText(box).reduce((prev, cur) => prev + " " + cur)
         })
     }));
-    console.log(code);
-    // interpret(code);
 }
 
 const getText = (box: Box) : string[]  => {
