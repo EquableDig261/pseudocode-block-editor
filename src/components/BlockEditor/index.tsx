@@ -1,139 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import './BlockEditor.css';
+import { Box, BoxStack} from "./types"
+import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, LIBRARY_X_SPACING, BOX_RADIUS, SUB_BLOCK_HEIGHT, EMPTY_BLOCK_WIDTH, BOX_SHADOW, DRAGGING_SHADOW, RETURN_TYPES, BOX_TYPES, COLORS, SUB_BOX_TYPES, LIBRARY_BOXES} from "./constants"
+import { serialize} from "./utils/serialization"
+import { getEmptySubBlock, getEmptyInputBlock } from "./utils/utility"
+import { deserialize } from "./utils/deserialization"
+import './styles/BlockEditor.css'
 
-type Box = {
-  id: number;
-  x: number;
-  y: number;
-  isOriginal: boolean;
-  verticalOffset: number;
-  color: string;
-  indentation: number;
-  type: string;
-  contents: (Box | string)[];
-  returnType: string | null;
-  acceptedReturnTypes: string[];
-};
 
-type BoxStack = {
-  boxes: (Box)[];
-  isDragging: boolean;
-};
 
-type expectedBox = {
-    acceptedReturnTypes: string[]
-}
-
-type LinePattern = {
-    pattern: {
-        [Symbol.match](string: string): RegExpMatchArray | null;
-    };
-    order: (string | expectedBox)[];
-    color: string;
-    boxType: string;
-};
-
-const getEmptySubBlock = (id: number, acceptedTypes: string[]) : Box => {
-    return {
-        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: BOX_TYPE.EMPTY_SUB_BLOCK, contents: [], returnType: null, acceptedReturnTypes: acceptedTypes
-    }
-}
-
-const getEmptyInputBlock = (id: number, returnType : string) : Box => {
-    const contents = (returnType === RETURN_TYPE.NUMBER || returnType === RETURN_TYPE.STRING) ? "" : "true";
-    return getInputBlock(id, returnType, contents);
-}
-
-const getInputBlock = (id: number, returnType : string, content : string) : Box => {
-    const type =  (returnType === RETURN_TYPE.NUMBER) ? BOX_TYPE.NUM_INPUT : (returnType === RETURN_TYPE.STRING) ? BOX_TYPE.TEXT_INPUT : BOX_TYPE.BOOL_INPUT;
-    return {
-        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: type, contents: [content], returnType: null, acceptedReturnTypes: []
-    }
-}
-
-const getWholeInputSubBlock = (id: number, returnType : string, content: string, expected: string[],) : Box => {
-    const color = (returnType === RETURN_TYPE.NUMBER) ? COLORS.DARK_BLUE : (returnType === RETURN_TYPE.STRING) ? COLORS.LIGHT_GREEN : (returnType === RETURN_TYPE.BOOLEAN) ? COLORS.ORANGE : COLORS.PURPLE;
-    return {
-        id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: color, indentation: 0, type: BOX_TYPE.SUB_BLOCK, contents: [returnType === RETURN_TYPE.VARIABLE ? content : getInputBlock(id+1, returnType, content)], returnType: returnType, acceptedReturnTypes: expected
-    }
-}
-
-// Constants for styling
-const BOX_HEIGHT = 34;
-const BOX_WIDTH = 160;
-const LIBRARY_Y_SPACING = 60;
-const LIBRARY_X_SPACING = 20;
-const BOX_RADIUS = 12;
-const SUB_BLOCK_HEIGHT = 28;
-const EMPTY_BLOCK_WIDTH = 40;
-
-// Box shadow for depth
-const BOX_SHADOW = "0 2px 4px rgba(0,0,0,0.1)";
-const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
-
-const RETURN_TYPE = {
-    NUMBER: "NUMBER",
-    STRING: "STRING",
-    BOOLEAN: "BOOLEAN",
-    VARIABLE: "VARIABLE",
-    ANY: ["VARIABLE", "NUMBER", "STRING", "BOOLEAN"],
-}
-
-const BOX_TYPE = {
-    BLOCK: "BLOCK",
-    WRAPPER: "WRAPPER",
-    MID_WRAPPER: "MID_WRAPPER",
-    END_WRAPPER: "END_WRAPPER",
-    EMPTY_SUB_BLOCK: "EMPTY_SUB_BLOCK",
-    SUB_BLOCK: "SUB_BLOCK",
-    TEXT_INPUT: "TEXT_INPUT",
-    NUM_INPUT: "NUM_INPUT",
-    BOOL_INPUT: "BOOL_INPUT",
-    COMMENT_INPUT: "COMMENT_INPUT",
-}
-// Colors with better contrast
-const COLORS = {
-    ORANGE: "#FA9C1B",
-    YELLOW: "#ff922b",
-    LIGHT_GREEN: "#51cf66",
-    FOREST: "#37b24d",
-    CYAN: "#30D5C8",
-    SKYBLUE: "#4dabf7",
-    DARK_BLUE: "#00008B",
-    PURPLE: "#9775fa",
-
-    EMPTY: "#e9ecef",
-    DROP_TARGET: "#ced4da",
-    GREY: "#808080",
-    BACKGROUND: "#1e1e1e",
-}
-
-type condition = {
-  text : string,
-  l : boolean,
-  r : boolean,
-  color : string,
-  expectedL: string[],
-  expectedR: string[],
-}
-
-const extrudeConditions : condition[] = [
-  {text: "*", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "/", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "+", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "-", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "==", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER, RETURN_TYPE.STRING], expectedR: [RETURN_TYPE.NUMBER, RETURN_TYPE.STRING]},
-  {text: "!=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER, RETURN_TYPE.STRING], expectedR: [RETURN_TYPE.NUMBER, RETURN_TYPE.STRING]},
-  {text: ">", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: ">=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "<", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "<=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.NUMBER], expectedR: [RETURN_TYPE.NUMBER]},
-  {text: "NOT", l: false, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.BOOLEAN], expectedR: [RETURN_TYPE.BOOLEAN]},
-  {text: "AND", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.BOOLEAN], expectedR: [RETURN_TYPE.BOOLEAN]},
-  {text: "OR", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPE.BOOLEAN], expectedR: [RETURN_TYPE.BOOLEAN]},
-]
 
 let addVariableOffset = 0
 
@@ -212,28 +88,6 @@ const updateInputBox = (boxes: BoxStack[], targetId: number, contents: string) :
       } as BoxStack));
 }
 
-const extractPseudoCode = (boxes : BoxStack[]) => {
-    boxes = boxes.filter((boxStack) => !boxStack.boxes.some(box => box.isOriginal));
-    const code = (boxes.map((boxStack) => {
-        return boxStack.boxes.map((box) => {
-            return "\t".repeat(Math.max(0, box.indentation)) + getText(box).reduce((prev, cur) => prev + " " + cur)
-        })
-    }));
-    return code.reduce((prev, curr) => prev + "\n\n" + curr.join("\n"), "").replace(/^\s*/g, "");
-}
-
-const getText = (box: Box) : string[]  => {
-    return box.contents.flatMap((content) => {
-        if (typeof content === "string") {
-            return [content];
-        }
-        if (content.type === BOX_TYPE.TEXT_INPUT) {
-            return [`"` + content.contents[0] + `"`];
-        }
-        return getText(content);
-    })
-}
-
 export default function BlockEditor() {
     const containerRef = useRef<HTMLDivElement>(null);
     const boxRefs = useRef<{ [key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null }>({});
@@ -247,62 +101,9 @@ export default function BlockEditor() {
         return getEmptyInputBlock(libId++, type);
     }
     
-    // Define the library box type to include returnType
-    type LibraryBox = {
-        type: string;
-        contents: (string | Box)[];
-        returnType: string | null;
-    };
-
-    // Box library definition with improved colors
-    const boxLibrary: { boxes: LibraryBox[]; color: string; }[] = [        
-        // Loops / Wrappers light yellow ig:
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["BEGIN"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["END"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["IF",  emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), "THEN"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDIF"], returnType: null},], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["WHILE",  emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDWHILE"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["REPEAT"], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["UNTIL", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["CASEWHERE",  emptyLibSubBlock([])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["ENDCASE"], returnType: null}], color: COLORS.YELLOW},
-        {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["FOR",  emptyLibSubBlock([]), "=", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "to", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "STEP", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["NEXT"], returnType: null}], color: COLORS.YELLOW},
-        
-        // Funcs - cyan
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["display", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.CYAN},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["get",  emptyLibSubBlock([])], returnType: null}], color: COLORS.CYAN},
-        
-        // updates - lBlue
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "=",  emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.SKYBLUE},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "+=",  emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: null}], color: COLORS.SKYBLUE},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "++"], returnType: null}], color: COLORS.SKYBLUE},
-        
-        // return Number - dblue
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "+", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "-", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "*", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "/", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "length of", emptyLibSubBlock([RETURN_TYPE.STRING])], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.NUMBER)], returnType: RETURN_TYPE.NUMBER}], color: COLORS.DARK_BLUE},
-        
-        // return string - lGreen
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING]), "+", emptyLibSubBlock([RETURN_TYPE.STRING])], returnType: RETURN_TYPE.STRING}], color: COLORS.LIGHT_GREEN},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.STRING)], returnType: RETURN_TYPE.STRING}], color: COLORS.LIGHT_GREEN},
-        
-        // return bool - orange oper
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), "AND", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), "OR", emptyLibSubBlock([RETURN_TYPE.BOOLEAN])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ "NOT (", emptyLibSubBlock([RETURN_TYPE.BOOLEAN]), ")"], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER]), "==", emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER]), "!=", emptyLibSubBlock([RETURN_TYPE.STRING, RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), ">", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), ">=", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "<", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [ emptyLibSubBlock([RETURN_TYPE.NUMBER]), "<=", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-        {boxes: [{type: BOX_TYPE.SUB_BLOCK, contents: [inputLibSubBlock(RETURN_TYPE.BOOLEAN)], returnType: RETURN_TYPE.BOOLEAN}], color: COLORS.ORANGE},
-
-        // var - purple
-    ]
-
     // library of Boxes auto dynamically assigned to Stacks
     let heightOffset = 0;
-    const originalBoxes: BoxStack[] = boxLibrary.map((stack, index) => {
+    const originalBoxes: BoxStack[] = LIBRARY_BOXES.map((stack, index) => {
         heightOffset += stack.boxes.length - 1;
         return {boxes: stack.boxes.map((b, i) => ({
             id: libId++,
@@ -313,169 +114,22 @@ export default function BlockEditor() {
             color: stack.color,
             indentation: 0,
             type: b.type,
-            contents: b.contents,
+            contents: b.contents.map(content => {
+                if (typeof content === "string") return content;
+                if (content.subBoxType === SUB_BOX_TYPES.INPUT) return inputLibSubBlock(content.returnTypes[0]);
+                return emptyLibSubBlock(content.returnTypes);
+            }),
             returnType: b.returnType,
             acceptedReturnTypes: [],
         })),
         isDragging: false,
         };
     });
-    
+
     const nextId = useRef(libId);
 
-
-    const getAdjacentString = (text : (string | Box)[], expectedIndex : number, acceptedTypes : string[]) => {
-        if (expectedIndex < 0 || expectedIndex >= text.length || extrudeConditions.some(condition => condition.text === text[expectedIndex])) {
-            return getEmptySubBlock(nextId.current++, acceptedTypes)
-        } 
-        const s = text[expectedIndex];
-        if (typeof s === "string") {
-            const returnType = !isNaN(Number(s)) ? RETURN_TYPE.NUMBER : s === "true" || s === "false" ? RETURN_TYPE.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPE.STRING : RETURN_TYPE.VARIABLE;
-            return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
-        }
-        s.acceptedReturnTypes = acceptedTypes;
-        return s;
-
-    }
-
-    const innerExtrude = (text : (Box | string)[]) : Box => {
-        extrudeConditions.forEach(condition => {
-            while (text.includes(condition.text)) {
-                const target = text.findIndex(str => str === condition.text);
-                
-                const leftString = (condition.l) ? getAdjacentString(text, target - 1, condition.expectedL) : null;
-                const rightString = (condition.r) ? getAdjacentString(text, target + 1, condition.expectedR) : null;
-                const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: condition.color, indentation: 0, type: BOX_TYPE.SUB_BLOCK, contents: [leftString, text[target], rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
-                
-                const left = (leftString && leftString.type !== BOX_TYPE.EMPTY_SUB_BLOCK ? 1 : 0)
-                const right = (rightString && rightString.type !== BOX_TYPE.EMPTY_SUB_BLOCK ? 1 : 0)
-                text.splice(target - left, 1 + left + right, replacement);
-            }
-        })
-        if (typeof text[0]=== "string") {
-            const s : string = text[0] as string
-            const returnType = !isNaN(Number(s)) ? RETURN_TYPE.NUMBER : s === "true" || s === "false" ? RETURN_TYPE.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPE.STRING : RETURN_TYPE.VARIABLE;
-            return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), RETURN_TYPE.ANY)
-        }
-        return text[0]
-    }
-
-    const extrude = (text : (Box | string)[]) : (Box | string)[] => {
-    // find the first ) and track the last ( then inner extrude what is between and return that in place of the brackets and what is between them
-        let lastBrace = -1;
-        text.forEach((t, index) => {
-        if (t === "(") lastBrace = index;
-        if (t === ")" && lastBrace >= 0) {
-            const spliceWholeArray = (index - lastBrace + 1 === text.length);
-            text.splice(lastBrace, index - lastBrace + 1,{id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: COLORS.LIGHT_GREEN, indentation: 0, type: BOX_TYPE.SUB_BLOCK, contents: [innerExtrude(text.slice(lastBrace + 1, index))], returnType: null, acceptedReturnTypes: []});
-        if (spliceWholeArray && typeof text[0] !== "string") text = text[0].contents
-        }
-        })
-        return text;
-    }
-
-    const getTree = (text : (Box | string)[], acceptedReturnTypes: string[]) : Box => {
-        while (text.includes("(")) {
-        text = extrude(text)
-        }
-        return {...innerExtrude(text), acceptedReturnTypes: acceptedReturnTypes};
-    }
-    
-    const splittingPattern = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
-
-    let boxExtrusionIndentation = 0;
-
-    const possibleLinePatterns : LinePattern[] = [
-        {pattern: /^IF(.*)THEN/, order: ["IF", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}, "THEN"], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-        {pattern: /^ELSE IF(.*)THEN/, order: ["ELSE IF", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}, "THEN"], color: COLORS.YELLOW, boxType: BOX_TYPE.MID_WRAPPER},
-        {pattern: /^ELSE/, order: ["ELSE"], color: COLORS.YELLOW, boxType: BOX_TYPE.MID_WRAPPER},
-        {pattern: /^ENDIF/, order: ["ENDIF"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-        
-        {pattern: /^WHILE(.*)/, order: ["WHILE", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-        {pattern: /^ENDWHILE/, order: ["ENDWHILE"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-
-        {pattern: /^FOR(.*)=(.*)to(.*)STEP(.*)/, order: ["FOR", {acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}, "=", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}, "to", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}, "STEP", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-        {pattern: /^ENDFOR/, order: ["ENDFOR"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-        
-        {pattern: /^REPEAT/, order: ["REPEAT"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-        {pattern: /^UNTIL(.*)/, order: ["UNTIL", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-
-        {pattern: /^CASEWHERE(.*)/, order: ["CASEWHERE", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-        {pattern: /^ENDCASE/, order: ["ENDCASE"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-        
-        {pattern: /^BEGIN/, order: ["BEGIN"], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
-        {pattern: /^END/, order: ["END"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
-
-        {pattern: /^display(.*)/, order: ["display", {acceptedReturnTypes: RETURN_TYPE.ANY}], color: COLORS.CYAN, boxType: BOX_TYPE.BLOCK},
-        {pattern: /^get(.*)/, order: ["END", {acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}], color: COLORS.CYAN, boxType: BOX_TYPE.BLOCK},
-
-        {pattern: /^([^\s]*)\s*=(.*)/, order: [{acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}, "=", {acceptedReturnTypes: RETURN_TYPE.ANY}], color: COLORS.SKYBLUE, boxType: BOX_TYPE.BLOCK},
-    ];
-
-    const matchLine = (text: string, linePattern : LinePattern, index: number) : Box => {
-        const inner = text.match(linePattern.pattern);
-        let boxIndex = 1;
-        const contents : (Box | string)[] = linePattern.order.map(s => {
-            if (typeof s === "string") return s;
-            if (!inner) return "";
-            const group = inner[boxIndex++].match(splittingPattern);
-            if (group) return getTree(group, s.acceptedReturnTypes)
-            return getEmptySubBlock(nextId.current++, s.acceptedReturnTypes)
-        })
-        let indentation : number;
-        switch (linePattern.boxType) {
-            case BOX_TYPE.WRAPPER: 
-                indentation = boxExtrusionIndentation++;
-                break;
-            case BOX_TYPE.MID_WRAPPER: 
-                indentation = boxExtrusionIndentation - 1;
-                break;
-            case BOX_TYPE.END_WRAPPER: 
-                indentation = --boxExtrusionIndentation;
-                break;
-            default: indentation = boxExtrusionIndentation;
-        }
-        return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: linePattern.color, indentation: indentation, type: linePattern.boxType, contents: contents, returnType: null, acceptedReturnTypes: []}
-    }
-
-    const getBoxesFromStorage = () : BoxStack[] => {
-        let editorContent = localStorage.getItem("editorContent")
-        if (!editorContent) editorContent = ""
-        const values:string[] = editorContent.split("\n");
-        boxExtrusionIndentation = 0;
-        let index = 0
-        const allBoxes = values.map((value) => {
-                value = value.replace(/[\r\n\t]|^\s+/g, '');
-                const linePattern = possibleLinePatterns.find(linePattern => value.match(linePattern.pattern))
-                if (linePattern) return matchLine(value, linePattern, index++);
-                if (value === "") return null;
-                return {id: nextId.current++, x: 450, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPE.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPE.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
-            })
-
-        const emptyBoxStacks: BoxStack[] = [{boxes: [], isDragging: false}];
-        return allBoxes.reduce((previous: BoxStack[], current, index, array) => {
-            if (current === null) return previous;
-            if (index === 0) {
-                previous[previous.length - 1].boxes.push(current);
-                return previous
-            }
-            current.x += 300 * (previous.length - 1);
-            current.y = previous[previous.length - 1].boxes.length * BOX_HEIGHT + 50
-            if (current.indentation === 0 && array[index - 1] === null && current.type !== BOX_TYPE.END_WRAPPER) {
-                current.x += 300
-                current.y = 50
-                previous.push({boxes: [current], isDragging: false});
-            }
-            else {
-                previous[previous.length - 1].boxes.push(current);
-            }
-            return previous;
-        }, emptyBoxStacks)
-    };
-
     const [boxes, setBoxes] = useState<BoxStack[]>(() => {
-        const b = getBoxesFromStorage();
-        return originalBoxes.concat(b);
+        return originalBoxes.concat(deserialize(nextId));
     });
     const [grabOffset, setGrabOffset] = useState({ x: 0, y: 0 });
     const [dropTargetBox, setDropTargetBox] = useState<Box | null>(null);
@@ -527,19 +181,19 @@ export default function BlockEditor() {
             let closestTarget: Box | null = null;
 
             // Find the closest target that the mouse is within
-            if (draggingBox.type !== BOX_TYPE.SUB_BLOCK) {
+            if (draggingBox.type !== BOX_TYPES.SUB_BLOCK) {
                 boxes.forEach((boxStack) => {
                     boxStack.boxes.forEach((box) => {
                         const beingDragged = draggingBoxStack.boxes.some(
                             (draggedBox) => draggedBox.id === box.id
                         );
                         if (beingDragged || box.isOriginal) return;
-                        if (box.type === BOX_TYPE.SUB_BLOCK) return;
+                        if (box.type === BOX_TYPES.SUB_BLOCK) return;
 
-                        const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BOX_TYPE.WRAPPER || box.type === BOX_TYPE.MID_WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
+                        const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
                                                 Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseY) < BOX_HEIGHT / 2
-                        const distanceToCentreOfTarget = Math.hypot(box.x + BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPE.WRAPPER  || box.type === BOX_TYPE.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, box.y + (BOX_HEIGHT * 1.5) - mouseY)
-                        const closestDistanceToCentre = closestTarget ? Math.hypot(closestTarget.x +  BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPE.WRAPPER || box.type === BOX_TYPE.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, closestTarget.y + (BOX_HEIGHT * 1.5) - mouseY) : Infinity;
+                        const distanceToCentreOfTarget = Math.hypot(box.x + BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER  || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, box.y + (BOX_HEIGHT * 1.5) - mouseY)
+                        const closestDistanceToCentre = closestTarget ? Math.hypot(closestTarget.x +  BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, closestTarget.y + (BOX_HEIGHT * 1.5) - mouseY) : Infinity;
 
                         if (mouseWithinTarget && distanceToCentreOfTarget < closestDistanceToCentre) {
                             closestTarget = box;
@@ -579,7 +233,7 @@ export default function BlockEditor() {
                             if(boxIsASubBoxOf(box, draggingBox)) return;
                             if (
                                 typeof content !== "string" &&
-                                content.type === BOX_TYPE.EMPTY_SUB_BLOCK &&
+                                content.type === BOX_TYPES.EMPTY_SUB_BLOCK &&
                                 boxRefs.current[content.id]
                             ) {
                                 const ref = boxRefs.current[content.id];
@@ -596,7 +250,7 @@ export default function BlockEditor() {
                                     relativeY >= rect.top &&
                                     relativeY <= rect.bottom
                                 ) {
-                                    if(draggingBox.returnType && !content.acceptedReturnTypes.includes(draggingBox.returnType) && draggingBox.returnType !== RETURN_TYPE.VARIABLE) return;
+                                    if(draggingBox.returnType && !content.acceptedReturnTypes.includes(draggingBox.returnType) && draggingBox.returnType !== RETURN_TYPES.VARIABLE) return;
                                     closestTarget = content;
                                 }
                             }
@@ -627,9 +281,9 @@ export default function BlockEditor() {
             }
             if (dropTargetBox && draggingBox) {
                 setBoxes((prevBoxes) => {
-                    if (dropTargetBox.type === BOX_TYPE.EMPTY_SUB_BLOCK) {
+                    if (dropTargetBox.type === BOX_TYPES.EMPTY_SUB_BLOCK) {
                         // Only allow dropping subBlocks into emptySubBlocks
-                        if (draggingBox.type !== BOX_TYPE.SUB_BLOCK) {
+                        if (draggingBox.type !== BOX_TYPES.SUB_BLOCK) {
                             return prevBoxes.map(boxStack => ({
                                 ...boxStack,
                                 isDragging: false
@@ -646,7 +300,7 @@ export default function BlockEditor() {
                         })).filter((boxStack) => !boxStack.isDragging);
                     } else {
                         // Handle dropping between blocks (for non-subBlocks)
-                        if (draggingBox.type === BOX_TYPE.SUB_BLOCK) {
+                        if (draggingBox.type === BOX_TYPES.SUB_BLOCK) {
                             return prevBoxes.map(boxStack => ({
                                 ...boxStack,
                                 isDragging: false
@@ -679,7 +333,7 @@ export default function BlockEditor() {
                                 x: dropTargetBox.x,
                                 y: dropTargetBox.y + BOX_HEIGHT * (index + 1),
                                 verticalOffset: 0,
-                                indentation: box.indentation + dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPE.WRAPPER || dropTargetBox.type === BOX_TYPE.MID_WRAPPER) ? 1 : 0),
+                                indentation: box.indentation + dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
                             })),
                             ...afterTarget.map((box) => ({
                                 ...box,
@@ -732,7 +386,7 @@ export default function BlockEditor() {
     }, [grabOffset, boxes, dropTargetBox, draggingBox]);
 
     useEffect(() => {
-        localStorage.setItem("editorContent", extractPseudoCode(boxes))
+        localStorage.setItem("editorContent", serialize(boxes))
     }, [boxes])
 
     const onMouseDown = (e: React.MouseEvent, id: number) => {
@@ -778,9 +432,9 @@ export default function BlockEditor() {
                             isOriginal: false, 
                             id: nextId.current++, 
                             contents: box2.contents.map((content) => 
-                                typeof content !== "string" && content.type === BOX_TYPE.EMPTY_SUB_BLOCK 
+                                typeof content !== "string" && content.type === BOX_TYPES.EMPTY_SUB_BLOCK 
                                     ? getEmptySubBlock(nextId.current++, content.acceptedReturnTypes) :
-                                typeof content !== "string" && box2.returnType && (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.BOOL_INPUT)
+                                typeof content !== "string" && box2.returnType && (content.type === BOX_TYPES.NUM_INPUT || content.type === BOX_TYPES.TEXT_INPUT || content.type === BOX_TYPES.BOOL_INPUT)
                                     ? getEmptyInputBlock(nextId.current++, box2.returnType)
                                     : content
                             )
@@ -809,16 +463,16 @@ export default function BlockEditor() {
                 
                     
                     if (!draggingBox) return prev;
-                    const dragIndentation = draggingBox.indentation + (draggingBox.type === BOX_TYPE.MID_WRAPPER ? 1 : 0)
+                    const dragIndentation = draggingBox.indentation + (draggingBox.type === BOX_TYPES.MID_WRAPPER ? 1 : 0)
 
                     let endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
                     let startIndex = boxIndex;
                     
-                    if (draggingBox.type === BOX_TYPE.WRAPPER) {
+                    if (draggingBox.type === BOX_TYPES.WRAPPER) {
                         endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
                     }
-                    else if (draggingBox.type === BOX_TYPE.END_WRAPPER) {
-                        startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBox && box.indentation === dragIndentation && box.type === BOX_TYPE.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
+                    else if (draggingBox.type === BOX_TYPES.END_WRAPPER) {
+                        startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBox && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
                         endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
                     }
 
@@ -850,12 +504,12 @@ export default function BlockEditor() {
                     const newBoxStack: BoxStack = {
                         boxes: draggedBoxes.map((box) => {
                             previousIndentation = currentIndentation;
-                            if (box.type === BOX_TYPE.WRAPPER) {
+                            if (box.type === BOX_TYPES.WRAPPER) {
                                 currentIndentation += 1;
-                            } else if (box.type === BOX_TYPE.END_WRAPPER) {
+                            } else if (box.type === BOX_TYPES.END_WRAPPER) {
                                 currentIndentation -= 1;
                                 previousIndentation -= 1;
-                            } else if (box.type === BOX_TYPE.MID_WRAPPER) {
+                            } else if (box.type === BOX_TYPES.MID_WRAPPER) {
                                 previousIndentation -= 1;
                             }
                             return {
@@ -916,9 +570,9 @@ export default function BlockEditor() {
                 verticalOffset: 0,
                 color: COLORS.PURPLE,
                 indentation: 0,
-                type: BOX_TYPE.SUB_BLOCK,
+                type: BOX_TYPES.SUB_BLOCK,
                 contents: [newVar],
-                returnType: RETURN_TYPE.VARIABLE,
+                returnType: RETURN_TYPES.VARIABLE,
                 acceptedReturnTypes: [],
             }], isDragging: false}])
 
@@ -951,9 +605,9 @@ export default function BlockEditor() {
                     <span 
                         key={`text-${box.id}-${i}`}
                         style={{
-                            fontWeight: box.type === BOX_TYPE.SUB_BLOCK || box.type === BOX_TYPE.EMPTY_SUB_BLOCK ? 400 : 500,
+                            fontWeight: box.type === BOX_TYPES.SUB_BLOCK || box.type === BOX_TYPES.EMPTY_SUB_BLOCK ? 400 : 500,
                             userSelect: "none",
-                            fontSize: box.type === BOX_TYPE.SUB_BLOCK ? "14px" : "15px",
+                            fontSize: box.type === BOX_TYPES.SUB_BLOCK ? "14px" : "15px",
                             padding: "0 4px",
                         }}
                         draggable={false}
@@ -963,8 +617,8 @@ export default function BlockEditor() {
                 );
             } else {
                 // For nested Box objects
-                const isEmptySubBlock = content.type === BOX_TYPE.EMPTY_SUB_BLOCK;
-                if (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.COMMENT_INPUT) {
+                const isEmptySubBlock = content.type === BOX_TYPES.EMPTY_SUB_BLOCK;
+                if (content.type === BOX_TYPES.NUM_INPUT || content.type === BOX_TYPES.TEXT_INPUT || content.type === BOX_TYPES.COMMENT_INPUT) {
                     return (
                         
                         <input
@@ -986,7 +640,7 @@ export default function BlockEditor() {
                                 }
                             }
                         }}
-                        type={content.type === BOX_TYPE.NUM_INPUT ? "number" : "text"}
+                        type={content.type === BOX_TYPES.NUM_INPUT ? "number" : "text"}
                         onMouseDown={(e) => {
                             if (!isEmptySubBlock) {
                                 e.stopPropagation();
@@ -1019,7 +673,7 @@ export default function BlockEditor() {
                             padding: "0 8px",
                             margin: "0 4px",
                             transition: "background-color 0.2s, box-shadow 0.2s",
-                            fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
+                            fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
                             appearance: "textfield", // Changed from "none" to "textfield" for better number input support
                             MozAppearance: "textfield", // Firefox
                             WebkitAppearance: "none", // WebKit browsers
@@ -1028,7 +682,7 @@ export default function BlockEditor() {
                         }}
                         />
                     );
-                } else if (content.type === BOX_TYPE.BOOL_INPUT) {
+                } else if (content.type === BOX_TYPES.BOOL_INPUT) {
                     return (<select
                         key={`box-${content.id}`}
                         ref={(el) => { boxRefs.current[content.id] = el; }}
@@ -1043,7 +697,7 @@ export default function BlockEditor() {
                             color:"black",
                             borderRadius: BOX_RADIUS,
                             minWidth: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : BOX_HEIGHT,
-                            height: content.type === BOX_TYPE.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
+                            height: content.type === BOX_TYPES.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
                             backgroundColor: 
                                 dropTargetBox &&
                                 dropTargetBox.id === content.id &&
@@ -1061,7 +715,7 @@ export default function BlockEditor() {
                             padding: '0 8px',
                             margin: '0 4px',
                             transition: "background-color 0.2s, box-shadow 0.2s",
-                            fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
+                            fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
                         }}
                     ><option value="true">true</option>
                     <option value="false">false</option>
@@ -1071,9 +725,9 @@ export default function BlockEditor() {
                     let rightColor = COLORS.DARK_BLUE;
                     let topColor = COLORS.DARK_BLUE;
                     let bottomColor = COLORS.DARK_BLUE;
-                    const accNum = content.acceptedReturnTypes.includes(RETURN_TYPE.NUMBER);
-                    const accBool = content.acceptedReturnTypes.includes(RETURN_TYPE.BOOLEAN);
-                    const accStr = content.acceptedReturnTypes.includes(RETURN_TYPE.STRING);
+                    const accNum = content.acceptedReturnTypes.includes(RETURN_TYPES.NUMBER);
+                    const accBool = content.acceptedReturnTypes.includes(RETURN_TYPES.BOOLEAN);
+                    const accStr = content.acceptedReturnTypes.includes(RETURN_TYPES.STRING);
                     if (accNum && accBool && accStr) {
                         rightColor = COLORS.ORANGE;
                         bottomColor = COLORS.LIGHT_GREEN;
@@ -1122,7 +776,7 @@ export default function BlockEditor() {
                                 borderRadius: BOX_RADIUS,
                                 width: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : "auto",
                                 minWidth: isEmptySubBlock ? EMPTY_BLOCK_WIDTH : BOX_HEIGHT,
-                                height: content.type === BOX_TYPE.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
+                                height: content.type === BOX_TYPES.SUB_BLOCK || isEmptySubBlock ? SUB_BLOCK_HEIGHT : SUB_BLOCK_HEIGHT,
                                 backgroundColor: 
                                     dropTargetBox &&
                                     dropTargetBox.id === content.id &&
@@ -1146,7 +800,7 @@ export default function BlockEditor() {
                                 borderBottomColor: bottomColor,
                                 borderLeftColor: leftColor,
                                 transition: "background-color 0.2s, box-shadow 0.2s",
-                                fontWeight: content.type === BOX_TYPE.SUB_BLOCK ? 400 : 500,
+                                fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
                             }}
                         >
                             {isEmptySubBlock 
@@ -1196,13 +850,13 @@ export default function BlockEditor() {
                 {boxes
                     .flatMap((boxStack) => boxStack.boxes)
                     .map((box) => {
-                    if (box.type === BOX_TYPE.EMPTY_SUB_BLOCK || !box.isOriginal) return null;
+                    if (box.type === BOX_TYPES.EMPTY_SUB_BLOCK || !box.isOriginal) return null;
 
                     const isDragging = boxes.some(
                         (boxStack2) =>
                         boxStack2.boxes.some((b) => b.id === box.id) && boxStack2.isDragging
                     );
-                    const isSubBlock = box.type === BOX_TYPE.SUB_BLOCK;
+                    const isSubBlock = box.type === BOX_TYPES.SUB_BLOCK;
 
                     return (
                         <div
@@ -1335,12 +989,12 @@ export default function BlockEditor() {
             {/* Display boxes */}
             {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
                 // Skip rendering empty sub blocks directly - they're rendered inside their parent blocks
-                if (box.type === BOX_TYPE.EMPTY_SUB_BLOCK) return null;
+                if (box.type === BOX_TYPES.EMPTY_SUB_BLOCK) return null;
                 if (box.isOriginal) return null;
 
                 const isDragging = boxes.some(boxStack2 => 
                     boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging);
-                const isSubBlock = box.type === BOX_TYPE.SUB_BLOCK;
+                const isSubBlock = box.type === BOX_TYPES.SUB_BLOCK;
                 
                 return (
                     <div
@@ -1388,11 +1042,11 @@ export default function BlockEditor() {
             })}
 
             {/* Drop target indicator */}
-            {dropTargetBox && dropTargetBox.type !== BOX_TYPE.EMPTY_SUB_BLOCK && (
+            {dropTargetBox && dropTargetBox.type !== BOX_TYPES.EMPTY_SUB_BLOCK && (
                 <div
                     style={{
                         position: "absolute",
-                        left: dropTargetBox.x + dropTargetBox.indentation * BOX_HEIGHT + (dropTargetBox.type === BOX_TYPE.WRAPPER || dropTargetBox.type === BOX_TYPE.MID_WRAPPER ? BOX_HEIGHT : 0),
+                        left: dropTargetBox.x + dropTargetBox.indentation * BOX_HEIGHT + (dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT : 0),
                         top: dropTargetBox.y + BOX_HEIGHT,
                         width: BOX_WIDTH,
                         height: 4,
