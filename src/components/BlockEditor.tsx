@@ -22,6 +22,19 @@ type BoxStack = {
   isDragging: boolean;
 };
 
+type expectedBox = {
+    acceptedReturnTypes: string[]
+}
+
+type LinePattern = {
+    pattern: {
+        [Symbol.match](string: string): RegExpMatchArray | null;
+    };
+    order: (string | expectedBox)[];
+    color: string;
+    boxType: string;
+};
+
 const getEmptySubBlock = (id: number, acceptedTypes: string[]) : Box => {
     return {
         id: id, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: "#f0f0f0", indentation: 0, type: BOX_TYPE.EMPTY_SUB_BLOCK, contents: [], returnType: null, acceptedReturnTypes: acceptedTypes
@@ -78,6 +91,7 @@ const BOX_TYPE = {
     TEXT_INPUT: "TEXT_INPUT",
     NUM_INPUT: "NUM_INPUT",
     BOOL_INPUT: "BOOL_INPUT",
+    COMMENT_INPUT: "COMMENT_INPUT",
 }
 // Colors with better contrast
 const COLORS = {
@@ -92,6 +106,7 @@ const COLORS = {
 
     EMPTY: "#e9ecef",
     DROP_TARGET: "#ced4da",
+    GREY: "#808080",
     BACKGROUND: "#1e1e1e",
 }
 
@@ -204,7 +219,7 @@ const extractPseudoCode = (boxes : BoxStack[]) => {
             return "\t".repeat(Math.max(0, box.indentation)) + getText(box).reduce((prev, cur) => prev + " " + cur)
         })
     }));
-    return code.reduce((prev, curr) => prev + curr.join("\n"), "");
+    return code.reduce((prev, curr) => prev + "\n\n" + curr.join("\n"), "").replace(/^\s*/g, "");
 }
 
 const getText = (box: Box) : string[]  => {
@@ -250,8 +265,8 @@ export default function BlockEditor() {
         {boxes: [{type: BOX_TYPE.WRAPPER, contents: ["FOR",  emptyLibSubBlock([]), "=", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "to", emptyLibSubBlock([RETURN_TYPE.NUMBER]), "STEP", emptyLibSubBlock([RETURN_TYPE.NUMBER])], returnType: null}, {type: BOX_TYPE.END_WRAPPER, contents: ["NEXT"], returnType: null}], color: COLORS.YELLOW},
         
         // Funcs - cyan
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["Display", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.CYAN},
-        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["GET",  emptyLibSubBlock([])], returnType: null}], color: COLORS.CYAN},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["display", emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.CYAN},
+        {boxes: [{type: BOX_TYPE.BLOCK, contents: ["get",  emptyLibSubBlock([])], returnType: null}], color: COLORS.CYAN},
         
         // updates - lBlue
         {boxes: [{type: BOX_TYPE.BLOCK, contents: [ emptyLibSubBlock([]), "=",  emptyLibSubBlock(RETURN_TYPE.ANY)], returnType: null}], color: COLORS.SKYBLUE},
@@ -315,8 +330,8 @@ export default function BlockEditor() {
         } 
         const s = text[expectedIndex];
         if (typeof s === "string") {
-            const returnType = !isNaN(Number()) ? RETURN_TYPE.NUMBER : s === "true" || s === "false" ? RETURN_TYPE.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPE.STRING : RETURN_TYPE.VARIABLE;
-            return  getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
+            const returnType = !isNaN(Number(s)) ? RETURN_TYPE.NUMBER : s === "true" || s === "false" ? RETURN_TYPE.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPE.STRING : RETURN_TYPE.VARIABLE;
+            return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
         }
         s.acceptedReturnTypes = acceptedTypes;
         return s;
@@ -365,73 +380,81 @@ export default function BlockEditor() {
         }
         return {...innerExtrude(text), acceptedReturnTypes: acceptedReturnTypes};
     }
+    
+    const splittingPattern = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
+
+    let boxExtrusionIndentation = 0;
+
+    const possibleLinePatterns : LinePattern[] = [
+        {pattern: /^IF(.*)THEN/, order: ["IF", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}, "THEN"], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+        {pattern: /^ELSE IF(.*)THEN/, order: ["ELSE IF", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}, "THEN"], color: COLORS.YELLOW, boxType: BOX_TYPE.MID_WRAPPER},
+        {pattern: /^ELSE/, order: ["ELSE"], color: COLORS.YELLOW, boxType: BOX_TYPE.MID_WRAPPER},
+        {pattern: /^ENDIF/, order: ["ENDIF"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+        
+        {pattern: /^WHILE(.*)/, order: ["WHILE", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+        {pattern: /^ENDWHILE/, order: ["ENDWHILE"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+
+        {pattern: /^FOR(.*)=(.*)to(.*)STEP(.*)/, order: ["FOR", {acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}, "=", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}, "to", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}, "STEP", {acceptedReturnTypes: [RETURN_TYPE.NUMBER]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+        {pattern: /^ENDFOR/, order: ["ENDFOR"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+        
+        {pattern: /^REPEAT/, order: ["REPEAT"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+        {pattern: /^UNTIL(.*)/, order: ["UNTIL", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+
+        {pattern: /^CASEWHERE(.*)/, order: ["CASEWHERE", {acceptedReturnTypes: [RETURN_TYPE.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+        {pattern: /^ENDCASE/, order: ["ENDCASE"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+        
+        {pattern: /^BEGIN/, order: ["BEGIN"], color: COLORS.YELLOW, boxType: BOX_TYPE.WRAPPER},
+        {pattern: /^END/, order: ["END"], color: COLORS.YELLOW, boxType: BOX_TYPE.END_WRAPPER},
+
+        {pattern: /^display(.*)/, order: ["display", {acceptedReturnTypes: RETURN_TYPE.ANY}], color: COLORS.CYAN, boxType: BOX_TYPE.BLOCK},
+        {pattern: /^get(.*)/, order: ["END", {acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}], color: COLORS.CYAN, boxType: BOX_TYPE.BLOCK},
+
+        {pattern: /^([^\s]*)\s*=(.*)/, order: [{acceptedReturnTypes: [RETURN_TYPE.VARIABLE]}, "=", {acceptedReturnTypes: RETURN_TYPE.ANY}], color: COLORS.SKYBLUE, boxType: BOX_TYPE.BLOCK},
+    ];
+
+    const matchLine = (text: string, linePattern : LinePattern, index: number) : Box => {
+        const inner = text.match(linePattern.pattern);
+        let boxIndex = 1;
+        const contents : (Box | string)[] = linePattern.order.map(s => {
+            if (typeof s === "string") return s;
+            if (!inner) return "";
+            const group = inner[boxIndex++].match(splittingPattern);
+            if (group) return getTree(group, s.acceptedReturnTypes)
+            return getEmptySubBlock(nextId.current++, s.acceptedReturnTypes)
+        })
+        let indentation : number;
+        switch (linePattern.boxType) {
+            case BOX_TYPE.WRAPPER: 
+                indentation = boxExtrusionIndentation++;
+                break;
+            case BOX_TYPE.MID_WRAPPER: 
+                indentation = boxExtrusionIndentation - 1;
+                break;
+            case BOX_TYPE.END_WRAPPER: 
+                indentation = --boxExtrusionIndentation;
+                break;
+            default: indentation = boxExtrusionIndentation;
+        }
+        return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: linePattern.color, indentation: indentation, type: linePattern.boxType, contents: contents, returnType: null, acceptedReturnTypes: []}
+    }
 
     const getBoxesFromStorage = () : BoxStack => {
         let editorContent = localStorage.getItem("editorContent")
         if (!editorContent) editorContent = ""
         const values:string[] = editorContent.split("\n");
-        const regex = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
-        let indentation = 0;
-        return {boxes: values.map((value, index) => {
+        boxExtrusionIndentation = 0;
+        let index = 0
+        return {boxes: values.map((value) => {
             value = value.replace(/[\r\n\t]|^\s+/g, '');
-            if (value.match(/^IF (.*) THEN/)) {
-                const match = value.match(/^IF (.*) THEN/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation++, type: BOX_TYPE.WRAPPER, contents: ["IF", getTree(group, [RETURN_TYPE.BOOLEAN]), "THEN"], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^ELSE IF (.*) THEN/)) {
-                const match = value.match(/^ELSE IF (.*) THEN/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation - 1, type: BOX_TYPE.MID_WRAPPER, contents: ["ELSE IF", getTree(group, [RETURN_TYPE.BOOLEAN]), "THEN"], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^WHILE (.*)/)) {
-                const match = value.match(/^WHILE (.*)/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation++, type: BOX_TYPE.WRAPPER, contents: ["WHILE", getTree(group, [RETURN_TYPE.BOOLEAN])], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^UNTIL (.*)/)) {
-                const match = value.match(/^UNTIL (.*)/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation-- - 1, type: BOX_TYPE.END_WRAPPER, contents: ["UNTIL", getTree(group, [RETURN_TYPE.BOOLEAN])], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^CASEWHERE (.*)/)) {
-                const match = value.match(/^CASEWHERE (.*)/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation++, type: BOX_TYPE.WRAPPER, contents: ["CASEWHERE", getTree(group, [RETURN_TYPE.VARIABLE])], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^display (.*)/)) {
-                const match = value.match(/^display (.*)/)
-                if (!match) return null;
-                const group: string[] = match[1].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.CYAN, indentation: indentation, type: BOX_TYPE.BLOCK, contents: ["display", getTree(group, RETURN_TYPE.ANY)], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^FOR (.*)=(.*) to (.*) STEP (.*)/)) {
-                const match = value.match(/^FOR (.*)=(.*) to (.*) STEP (.*)/)
-                if (!match) return null;
-                const group1: string[] = match[1].match(regex) ?? [];
-                const group2: string[] = match[2].match(regex) ?? [];
-                const group3: string[] = match[3].match(regex) ?? [];
-                const group4: string[] = match[4].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW,indentation: indentation++, type: BOX_TYPE.WRAPPER, contents: ["FOR", getTree(group1, [RETURN_TYPE.VARIABLE]), "=", getTree(group2, [RETURN_TYPE.NUMBER]), "to", getTree(group3, [RETURN_TYPE.NUMBER]), "STEP", getTree(group4, [RETURN_TYPE.NUMBER])], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^([a-zA-Z_]\w*) = (.*)/)) {
-                const match = value.match(/^\s*([a-zA-Z_]\w*) = (.*)/)
-                if (!match) return null;
-                const group1: string = match[1];
-                const group2: string[] = match[2].match(regex) ?? [];
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.CYAN,indentation: indentation, type: BOX_TYPE.BLOCK, contents: [{id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: COLORS.PURPLE, indentation: 0, type: BOX_TYPE.SUB_BLOCK, contents: [group1], returnType: RETURN_TYPE.VARIABLE, acceptedReturnTypes: []}, "=", getTree(group2, RETURN_TYPE.ANY)], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^BEGIN/)) {
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation++, type: BOX_TYPE.WRAPPER, contents: ["BEGIN"], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^ENDIF/)) {
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation-- -1, type: BOX_TYPE.END_WRAPPER, contents: ["ENDIF"], returnType: null, acceptedReturnTypes: []}
-            } else if (value.match(/^END/)) {
-                return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: COLORS.YELLOW, indentation: indentation-- - 1, type: BOX_TYPE.END_WRAPPER, contents: ["END"], returnType: null, acceptedReturnTypes: []}
-            }
-            return null;
+            const linePattern = possibleLinePatterns.find(linePattern => value.match(linePattern.pattern))
+            if (linePattern) return matchLine(value, linePattern, index++);
+            if (value === "") return null;
+            return {id: nextId.current++, x: 450, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPE.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPE.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
         }).filter(x => x !== null), isDragging: false}
     };
 
     const [boxes, setBoxes] = useState<BoxStack[]>(() => {
         const b = getBoxesFromStorage();
-        console.log(b)
         return originalBoxes.concat(b);
     });
     const [grabOffset, setGrabOffset] = useState({ x: 0, y: 0 });
@@ -689,7 +712,6 @@ export default function BlockEditor() {
     }, [grabOffset, boxes, dropTargetBox, draggingBox]);
 
     useEffect(() => {
-        console.log("CHANGED!!!")
         localStorage.setItem("editorContent", extractPseudoCode(boxes))
     }, [boxes])
 
@@ -922,7 +944,7 @@ export default function BlockEditor() {
             } else {
                 // For nested Box objects
                 const isEmptySubBlock = content.type === BOX_TYPE.EMPTY_SUB_BLOCK;
-                if (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT) {
+                if (content.type === BOX_TYPE.NUM_INPUT || content.type === BOX_TYPE.TEXT_INPUT || content.type === BOX_TYPE.COMMENT_INPUT) {
                     return (
                         
                         <input
