@@ -2,7 +2,7 @@
 
 import WrittenEditor from "@/components/WrittenEditor";
 import BlockEditor from "@/components/BlockEditor";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
@@ -12,6 +12,15 @@ export default function Home() {
     console.log(localStorage.getItem("editorContent"))
     setIsBlockView((prev) => !prev)
   };
+
+  useEffect(() => {
+    const stored = localStorage.getItem("isBlockView");
+    if (stored === "true") setIsBlockView(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("isBlockView", isBlockView ? "true" : "false")
+  }, [isBlockView])
 
   return (
     <div className="flex flex-col h-screen">
@@ -79,3 +88,4 @@ export default function Home() {
     </div>
   );
 }
+

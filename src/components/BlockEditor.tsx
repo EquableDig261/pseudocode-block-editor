@@ -438,19 +438,39 @@ export default function BlockEditor() {
         return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: linePattern.color, indentation: indentation, type: linePattern.boxType, contents: contents, returnType: null, acceptedReturnTypes: []}
     }
 
-    const getBoxesFromStorage = () : BoxStack => {
+    const getBoxesFromStorage = () : BoxStack[] => {
         let editorContent = localStorage.getItem("editorContent")
         if (!editorContent) editorContent = ""
         const values:string[] = editorContent.split("\n");
         boxExtrusionIndentation = 0;
         let index = 0
-        return {boxes: values.map((value) => {
-            value = value.replace(/[\r\n\t]|^\s+/g, '');
-            const linePattern = possibleLinePatterns.find(linePattern => value.match(linePattern.pattern))
-            if (linePattern) return matchLine(value, linePattern, index++);
-            if (value === "") return null;
-            return {id: nextId.current++, x: 450, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPE.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPE.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
-        }).filter(x => x !== null), isDragging: false}
+        const allBoxes = values.map((value) => {
+                value = value.replace(/[\r\n\t]|^\s+/g, '');
+                const linePattern = possibleLinePatterns.find(linePattern => value.match(linePattern.pattern))
+                if (linePattern) return matchLine(value, linePattern, index++);
+                if (value === "") return null;
+                return {id: nextId.current++, x: 450, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPE.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPE.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
+            })
+
+        const emptyBoxStacks: BoxStack[] = [{boxes: [], isDragging: false}];
+        return allBoxes.reduce((previous: BoxStack[], current, index, array) => {
+            if (current === null) return previous;
+            if (index === 0) {
+                previous[previous.length - 1].boxes.push(current);
+                return previous
+            }
+            current.x += 300 * (previous.length - 1);
+            current.y = previous[previous.length - 1].boxes.length * BOX_HEIGHT + 50
+            if (current.indentation === 0 && array[index - 1] === null && current.type !== BOX_TYPE.END_WRAPPER) {
+                current.x += 300
+                current.y = 50
+                previous.push({boxes: [current], isDragging: false});
+            }
+            else {
+                previous[previous.length - 1].boxes.push(current);
+            }
+            return previous;
+        }, emptyBoxStacks)
     };
 
     const [boxes, setBoxes] = useState<BoxStack[]>(() => {
@@ -1163,10 +1183,10 @@ export default function BlockEditor() {
                     overflowY: "auto",
                     overflowX: "hidden",
                     padding: "8px",
-                    backgroundColor: `rgb(161, 161, 161)`,
-                    border: `4px solid rgb(0, 0, 0)`,
-                    borderTopRightRadius: "20px",
-                    borderBottomRightRadius: "20px",
+                    backgroundColor: `#666`,
+                    borderRight: `4px solid rgb(0, 0, 0)`,
+                    // borderTopRightRadius: "20px",
+                    // borderBottomRightRadius: "20px",
                     direction: "rtl",
                 }}>
                 <div style= {{direction: "ltr"}}>
