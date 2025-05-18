@@ -16,30 +16,6 @@ const keywords = [
   "IF", "ELSE", "THEN", "BEGIN", "END", "WHILE", "FOR", "STEP", "NEXT", "ENDWHILE", "ENDIF", "display", "get", "REPEAT", "UNTIL", "CASEWHERE", "ENDCASE", "AND", "OR", "NOT"
 ];
 
-type tree = (string | tree)[];
-
-type condition = {
-  text : string,
-  l : boolean,
-  r : boolean,
-}
-
-const extrudeConditions : condition[] = [
-  {text: "*", l: true, r: true},
-  {text: "/", l: true, r: true},
-  {text: "+", l: true, r: true},
-  {text: "-", l: true, r: true},
-  {text: "==", l: true, r: true},
-  {text: "!=", l: true, r: true},
-  {text: ">", l: true, r: true},
-  {text: ">=", l: true, r: true},
-  {text: "<", l: true, r: true},
-  {text: "<=", l: true, r: true},
-  {text: "NOT", l: false, r: true},
-  {text: "AND", l: true, r: true},
-  {text: "OR", l: true, r: true},
-]
-
 export default function WrittenEditor() {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null); // Ref to hold the Monaco editor instance
 
@@ -209,126 +185,23 @@ export default function WrittenEditor() {
     editorRef.current = editor;
   };
 
-  const innerExtrude = (text : tree, conditions : condition[]) : tree => {
-    let changeFlag = false;
-    conditions.forEach(cond => {
-      const left = (cond.l ? 1 : 0)
-      const right = (cond.r ? 1 : 0)
-      while (text.includes(cond.text)) {
-        const target = text.findIndex(str => str === cond.text);
-        if (target <= left - 1 || target >= text.length - right) {}//TODO: throw error
-        changeFlag = true;
-        const leftString = (cond.l) ? (typeof text[target - 1] === "string") ? [text[target - 1]] : text[target - 1] : null
-        const rightString = (cond.r) ? (typeof text[target + 1] === "string") ? [text[target + 1]] : text[target + 1] : null
-        const replacement = [leftString, text[target], rightString].filter(v => v !== null)
-        text.splice(target - left, 1 + left + right, replacement);
-      }
-    })
-    return (changeFlag && typeof text[0] !== "string") ? text[0] : text;
-  }
-
-  const extrude = (text : tree) : tree => {
-// find the first ) and track the last ( then inner extrude what is between and return that in place of the brackets and what is between them
-    let lastBrace = -1;
-    text.forEach((t, index) => {
-      if (t === "(") lastBrace = index;
-      if (t === ")" && lastBrace >= 0) {
-        const spliceWholeArray = (index - lastBrace + 1 === text.length);
-        text.splice(lastBrace, index - lastBrace + 1, innerExtrude(text.slice(lastBrace + 1, index), extrudeConditions));
-      if (spliceWholeArray && typeof text[0] !== "string") text = text[0]
-      }
-    })
-    return text;
-  }
-
-  const getTree = (text : tree) => {
-    while (text.includes("(")) {
-      text = extrude(text)
-    }
-    return innerExtrude(text, extrudeConditions);
-  }
-
-  const getEditorContents = () => {
-    if (!editorRef.current) return;
-    const values:string[] = editorRef.current?.getValue().split("\n");
-    const regex = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
-    const r = values.map(value => {
-      value = value.replace(/[\r\n\t]|^\s+/g, '');
-      if (value.match(/^IF (.*) THEN/)) {
-        const match = value.match(/^IF (.*) THEN/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["IF", getTree(group), "THEN"]
-      } else if (value.match(/^ELSE IF (.*) THEN/)) {
-        const match = value.match(/^ELSE IF (.*) THEN/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["ELSE IF", getTree(group), "THEN"]
-      } else if (value.match(/^WHILE (.*)/)) {
-        const match = value.match(/^WHILE (.*)/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["WHILE", getTree(group)]
-      } else if (value.match(/^UNTIL (.*)/)) {
-        const match = value.match(/^UNTIL (.*)/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["UNTIL", getTree(group)]
-      } else if (value.match(/^CASEWHERE (.*)/)) {
-        const match = value.match(/^CASEWHERE (.*)/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["CASEWHERE", getTree(group)]
-      } else if (value.match(/^display (.*)/)) {
-        const match = value.match(/^display (.*)/)
-        if (!match) return value;
-        const group: string[] = match[1].match(regex) ?? [];
-        return ["display", getTree(group)]
-      } else if (value.match(/^FOR (.*)=(.*) to (.*) STEP (.*)/)) {
-        const match = value.match(/^FOR (.*)=(.*) to (.*) STEP (.*)/)
-        if (!match) return value;
-        const group1: string[] = match[1].match(regex) ?? [];
-        const group2: string[] = match[2].match(regex) ?? [];
-        const group3: string[] = match[3].match(regex) ?? [];
-        const group4: string[] = match[4].match(regex) ?? [];
-        return ["FOR", getTree(group1), "=", getTree(group2), "to", getTree(group3), "STEP", getTree(group4)]
-      } else if (value.match(/^\s*([a-zA-Z_]\w*) = (.*)/)) {
-        const match = value.match(/^\s*([a-zA-Z_]\w*) = (.*)/)
-        if (!match) return value;
-        const group1: string = match[1];
-        const group2: string[] = match[2].match(regex) ?? [];
-        return [[group1], "=", getTree(group2)]
-      } else {
-        return value;
-      }
-    })
-    console.log(r);
-
-  };
+  
 
   return (
     <>
       <MonacoEditor
-        height="90vh"
+        className="h-full"
         defaultLanguage={languageId}
         defaultValue={typeof window !== 'undefined' ? localStorage.getItem('editorContent') || '' : ''}
         theme="myCustomTheme"
         onMount={handleEditorDidMount}
         onChange={(value) => {
           if (typeof window !== 'undefined' && value !== undefined) {
+            console.log(value);
             localStorage.setItem('editorContent', value);
           }
         }}
       />
-      <button onClick={getEditorContents}
-        style={{
-          zIndex:999,
-          backgroundColor: "white",
-          bottom: 0,
-          width: 100,
-          height: 30,
-        }}
-      ></button>
     </>
   );
 }
