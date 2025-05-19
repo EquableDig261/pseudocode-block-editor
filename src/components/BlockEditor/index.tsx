@@ -50,7 +50,7 @@ export default function BlockEditor() {
     const [dropTargetBox, setDropTargetBox] = useState<Box | null>(null);
     const [draggingBox, setDraggingBox] = useState<Box | null>(null);
     const [newVariable, setNewVariable] = useState("");
-    
+
     const variableAdditionYOffset = LIBRARY_Y_SPACING * (originalBoxes.length) + (originalBoxes.map((boxStack) => boxStack.boxes.length - 1).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT;
 
     const { handleMouseDown, handleMouseMove, handleMouseUp } = createMouseHandlers({
@@ -141,7 +141,6 @@ export default function BlockEditor() {
                 const isEmptySubBlock = content.type === BOX_TYPES.EMPTY_SUB_BLOCK;
                 if (content.type === BOX_TYPES.NUM_INPUT || content.type === BOX_TYPES.TEXT_INPUT || content.type === BOX_TYPES.COMMENT_INPUT) {
                     return (
-                        
                         <input
                         className="input-box"
                         key={`box-${content.id}`}
@@ -173,20 +172,11 @@ export default function BlockEditor() {
                             borderRadius: BOX_RADIUS,
                             height: SUB_BLOCK_HEIGHT,
                             backgroundColor:
-                                dropTargetBox &&
-                                dropTargetBox.id === content.id &&
-                                isEmptySubBlock
-                                    ? COLORS.DROP_TARGET
-                                    : isEmptySubBlock
-                                    ? COLORS.EMPTY
-                                    : content.color,
-                            boxShadow: isEmptySubBlock
-                                ? "none"
-                                : boxes.some(boxStack =>
-                                      boxStack.isDragging && boxStack.boxes.some(b => b.id === content.id)
-                                  )
-                                ? DRAGGING_SHADOW
-                                : BOX_SHADOW,
+                                dropTargetBox &&dropTargetBox.id === content.id && isEmptySubBlock ? COLORS.DROP_TARGET
+                                    : isEmptySubBlock ? COLORS.EMPTY : content.color,
+                            boxShadow: isEmptySubBlock ? "none"
+                                : boxes.some(boxStack => boxStack.isDragging && boxStack.boxes.some(b => b.id === content.id))
+                                ? DRAGGING_SHADOW : BOX_SHADOW,
                             flexShrink: 0,
                             display: "inline-flex",
                             alignItems: "center",
@@ -195,9 +185,9 @@ export default function BlockEditor() {
                             margin: "0 4px",
                             transition: "background-color 0.2s, box-shadow 0.2s",
                             fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
-                            appearance: "textfield", // Changed from "none" to "textfield" for better number input support
-                            MozAppearance: "textfield", // Firefox
-                            WebkitAppearance: "none", // WebKit browsers
+                            appearance: "textfield",
+                            MozAppearance: "textfield",
+                            WebkitAppearance: "none",
                             outline: "none",
                             border: "none",
                         }}
@@ -242,46 +232,25 @@ export default function BlockEditor() {
                     <option value="false">false</option>
                     </select>)
                 }else {
-                    let leftColor = COLORS.DARK_BLUE;
-                    let rightColor = COLORS.DARK_BLUE;
-                    let topColor = COLORS.DARK_BLUE;
-                    let bottomColor = COLORS.DARK_BLUE;
-                    const accNum = content.acceptedReturnTypes.includes(RETURN_TYPES.NUMBER);
-                    const accBool = content.acceptedReturnTypes.includes(RETURN_TYPES.BOOLEAN);
-                    const accStr = content.acceptedReturnTypes.includes(RETURN_TYPES.STRING);
-                    if (accNum && accBool && accStr) {
-                        rightColor = COLORS.ORANGE;
-                        bottomColor = COLORS.LIGHT_GREEN;
-                        topColor = COLORS.PURPLE;
-                    }
-                    else if (accNum && accBool)  {
-                        rightColor = COLORS.ORANGE;
-                        bottomColor = COLORS.ORANGE;
-                    }
-                    else if (accNum && accStr) {
-                        leftColor = COLORS.LIGHT_GREEN;
-                        topColor = COLORS.LIGHT_GREEN;
-                    }
-                    else if (accBool && accStr) {
-                        rightColor = COLORS.ORANGE;
-                        bottomColor = COLORS.ORANGE;
-                        leftColor = COLORS.LIGHT_GREEN;
-                        topColor = COLORS.LIGHT_GREEN;
-                    } else if (accBool) {
-                        rightColor = COLORS.ORANGE;
-                        bottomColor = COLORS.ORANGE;
-                        leftColor = COLORS.ORANGE;
-                        topColor = COLORS.ORANGE;
-                    } else if (accStr) {
-                        rightColor = COLORS.LIGHT_GREEN;
-                        bottomColor = COLORS.LIGHT_GREEN;
-                        leftColor = COLORS.LIGHT_GREEN;
-                        topColor = COLORS.LIGHT_GREEN;
-                    } else if (!accNum) {
-                        rightColor = COLORS.PURPLE;
-                        bottomColor = COLORS.PURPLE;
-                        leftColor = COLORS.PURPLE;
-                        topColor = COLORS.PURPLE;
+                    const acceptsNumbers = content.acceptedReturnTypes.includes(RETURN_TYPES.NUMBER);
+                    const acceptsBooleans = content.acceptedReturnTypes.includes(RETURN_TYPES.BOOLEAN);
+                    const acceptsStrings = content.acceptedReturnTypes.includes(RETURN_TYPES.STRING);
+
+                    let borderColors = [COLORS.DARK_BLUE, COLORS.DARK_BLUE, COLORS.DARK_BLUE, COLORS.DARK_BLUE]
+                    if (acceptsNumbers && acceptsBooleans && acceptsStrings) {
+                        borderColors = [COLORS.PURPLE, COLORS.ORANGE, COLORS.LIGHT_GREEN, COLORS.DARK_BLUE];
+                    } else if (acceptsNumbers && acceptsBooleans)  {
+                        borderColors = [COLORS.DARK_BLUE, COLORS.ORANGE, COLORS.ORANGE, COLORS.DARK_BLUE];
+                    } else if (acceptsNumbers && acceptsStrings) {
+                        borderColors = [COLORS.LIGHT_GREEN, COLORS.DARK_BLUE, COLORS.DARK_BLUE, COLORS.LIGHT_GREEN];
+                    } else if (acceptsBooleans && acceptsStrings) {
+                        borderColors = [COLORS.ORANGE, COLORS.LIGHT_GREEN, COLORS.LIGHT_GREEN, COLORS.ORANGE];
+                    } else if (acceptsBooleans) {
+                        borderColors = [COLORS.ORANGE, COLORS.ORANGE, COLORS.ORANGE, COLORS.ORANGE];
+                    } else if (acceptsStrings) {
+                        borderColors = [COLORS.LIGHT_GREEN, COLORS.LIGHT_GREEN, COLORS.LIGHT_GREEN, COLORS.LIGHT_GREEN];
+                    } else if (!acceptsNumbers) {
+                        borderColors = [COLORS.PURPLE, COLORS.PURPLE, COLORS.PURPLE, COLORS.PURPLE];
                     }
                     return (
                         <div
@@ -316,10 +285,10 @@ export default function BlockEditor() {
                                 margin: '0 4px',
                                 borderWidth: isEmptySubBlock ? "2.3px" : 0,
                                 borderStyle: "dashed",
-                                borderTopColor: topColor,
-                                borderRightColor: rightColor,
-                                borderBottomColor: bottomColor,
-                                borderLeftColor: leftColor,
+                                borderTopColor: borderColors[0],
+                                borderRightColor: borderColors[1],
+                                borderBottomColor: borderColors[2],
+                                borderLeftColor: borderColors[3],
                                 transition: "background-color 0.2s, box-shadow 0.2s",
                                 fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
                             }}
@@ -335,6 +304,62 @@ export default function BlockEditor() {
         });
     };
 
+    const renderBox = (box:Box) => {
+        const isDragging = boxes.some(
+            (boxStack2) => boxStack2.boxes.some((b) => b.id === box.id) && boxStack2.isDragging
+        );
+        const isSubBlock = box.type === BOX_TYPES.SUB_BLOCK;
+
+        return (
+            <div
+                key={box.id}
+                ref={(el) => {
+                    boxRefs.current[box.id] = el;
+                }}
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    handleMouseDown(e, box.id);
+                }}
+                style={{
+                    position: "absolute",
+                    left: box.x + box.indentation * BOX_HEIGHT,
+                    top: box.y + BOX_HEIGHT * box.verticalOffset,
+                    height: isSubBlock ? SUB_BLOCK_HEIGHT : BOX_HEIGHT,
+                    minWidth: isSubBlock ? "auto" : BOX_WIDTH,
+                    backgroundColor: box.color,
+                    cursor: isDragging ? "grabbing" : "grab",
+                    userSelect: "none",
+                    zIndex: box.indentation + 100 * boxes.findIndex((stack) =>
+                            stack.boxes.some((b) => b.id === box.id)
+                        ),
+                    borderRadius: isSubBlock ? `${BOX_RADIUS}px`
+                        : `${BOX_RADIUS / 2}px ${BOX_RADIUS}px ${BOX_RADIUS}px ${BOX_RADIUS / 2}px`,
+                    boxShadow: isDragging ? DRAGGING_SHADOW : BOX_SHADOW,
+                    transition: "box-shadow 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    paddingLeft: isSubBlock ? 8 : 12,
+                    paddingRight: 12,
+                    fontWeight: isSubBlock ? 400 : 500,
+                    fontSize: isSubBlock ? "14px" : "15px",
+                    border: box.isOriginal ? `2px solid ${box.color === COLORS.EMPTY ? "#ced4da" : box.color}` : "none",
+                    borderLeftWidth: isSubBlock ? 2 : 0,
+                }}
+            >
+                <div
+                    style={{
+                    display: "flex",
+                    alignItems: "center",
+                    height: "100%",
+                    gap: "2px",
+                    }}
+                >
+                    {renderContents(box, box.isOriginal)}
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div
             ref={containerRef}
@@ -342,7 +367,6 @@ export default function BlockEditor() {
             style={{
                 position: "relative",
                 width: "100vw",
-                // height: "",
                 overflow: "hidden",
                 backgroundColor: COLORS.BACKGROUND,
                 fontFamily: "system-ui, -apple-system, sans-serif",
@@ -350,93 +374,24 @@ export default function BlockEditor() {
         >
             {/* display library */}
             <div style={{
-                    position: "absolute",
-                    top: "0", 
-                    bottom: "0",
-                    left: "0",
-                    width: "400px",  
-                    overflowY: "auto",
-                    overflowX: "hidden",
-                    padding: "8px",
-                    backgroundColor: `#666`,
-                    borderRight: `4px solid rgb(0, 0, 0)`,
-                    // borderTopRightRadius: "20px",
-                    // borderBottomRightRadius: "20px",
-                    direction: "rtl",
-                }}>
-                <div style= {{direction: "ltr"}}>
-                {/* Title area */}
-                <div style={{ position: "relative", width: "100%", height: "100%" }} >
+                position: "absolute",
+                top: "0", 
+                bottom: "0",
+                left: "0",
+                width: "400px",  
+                overflowY: "auto",
+                overflowX: "hidden",
+                padding: "8px",
+                backgroundColor: `#666`,
+                borderRight: `4px solid rgb(0, 0, 0)`,
+                direction: "rtl",
+            }}>
+                <div style={{direction: "ltr", position: "relative", width: "100%", height: "100%" }} >
                 {/* Render Library Boxes */}
-                {boxes
-                    .flatMap((boxStack) => boxStack.boxes)
-                    .map((box) => {
+                {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
                     if (box.type === BOX_TYPES.EMPTY_SUB_BLOCK || !box.isOriginal) return null;
-
-                    const isDragging = boxes.some(
-                        (boxStack2) =>
-                        boxStack2.boxes.some((b) => b.id === box.id) && boxStack2.isDragging
-                    );
-                    const isSubBlock = box.type === BOX_TYPES.SUB_BLOCK;
-
-                    return (
-                        <div
-                        key={box.id}
-                        ref={(el) => {
-                            boxRefs.current[box.id] = el;
-                        }}
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            handleMouseDown(e, box.id);
-                        }}
-                        style={{
-                            position: "absolute",
-                            left: box.x + box.indentation * BOX_HEIGHT,
-                            top: box.y + BOX_HEIGHT * box.verticalOffset,
-                            height: isSubBlock ? SUB_BLOCK_HEIGHT : BOX_HEIGHT,
-                            minWidth: isSubBlock ? "auto" : BOX_WIDTH,
-                            backgroundColor: box.color,
-                            cursor: isDragging ? "grabbing" : "grab",
-                            userSelect: "none",
-                            zIndex:
-                            box.indentation +
-                            100 * boxes.findIndex((stack) =>
-                                stack.boxes.some((b) => b.id === box.id)
-                            ),
-                            borderRadius: isSubBlock
-                            ? `${BOX_RADIUS}px`
-                            : `${BOX_RADIUS / 2}px ${BOX_RADIUS}px ${BOX_RADIUS}px ${
-                                BOX_RADIUS / 2
-                                }px`,
-                            boxShadow: isDragging ? DRAGGING_SHADOW : BOX_SHADOW,
-                            transition: "box-shadow 0.2s",
-                            display: "flex",
-                            alignItems: "center",
-                            paddingLeft: isSubBlock ? 8 : 12,
-                            paddingRight: 12,
-                            fontWeight: isSubBlock ? 400 : 500,
-                            fontSize: isSubBlock ? "14px" : "15px",
-                            border: box.isOriginal
-                            ? `2px solid ${
-                                box.color === COLORS.EMPTY ? "#ced4da" : box.color
-                                }`
-                            : "none",
-                            borderLeftWidth: isSubBlock ? 2 : 0,
-                        }}
-                        >
-                        <div
-                            style={{
-                            display: "flex",
-                            alignItems: "center",
-                            height: "100%",
-                            gap: "2px",
-                            }}
-                        >
-                            {renderContents(box, box.isOriginal)}
-                        </div>
-                        </div>
-                    );
-                    })}
+                    return (renderBox(box));
+                })}
 
                 {/* Input + Button */}
                 <div
@@ -451,115 +406,65 @@ export default function BlockEditor() {
                     }}
                 >
                     <input
-                    type="text"
-                    value={newVariable}
-                    onChange={(e) => setNewVariable(e.target.value)}
-                    placeholder="New Variable..."
-                    style={{
-                        border: `2px solid ${COLORS.PURPLE}`,
-                        borderRadius: BOX_RADIUS,
-                        height: "38px",
-                        width: "200px",
-                        padding: "0 12px",
-                        fontSize: "14px",
-                        backgroundColor: "white",
-                        color: "#212529",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                        outline: "none",
-                    }}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSubmit();
-                    }}
+                        type="text"
+                        value={newVariable}
+                        onChange={(e) => setNewVariable(e.target.value)}
+                        placeholder="New Variable..."
+                        style={{
+                            border: `2px solid ${COLORS.PURPLE}`,
+                            borderRadius: BOX_RADIUS,
+                            height: "38px",
+                            width: "200px",
+                            padding: "0 12px",
+                            fontSize: "14px",
+                            backgroundColor: "white",
+                            color: "#212529",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                            outline: "none",
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSubmit();
+                        }}
                     />
                     <button
-                    onClick={handleSubmit}
-                    style={{
-                        border: "none",
-                        borderRadius: BOX_RADIUS,
-                        height: "38px",
-                        padding: "0 16px",
-                        fontSize: "14px",
-                        cursor: "pointer",
-                        backgroundColor: COLORS.PURPLE,
-                        color: "white",
-                        fontWeight: 500,
-                        boxShadow: BOX_SHADOW,
-                        transition: "background-color 0.2s, transform 0.1s",
-                    }}
-                    onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
-                    onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+                        onClick={handleSubmit}
+                        style={{
+                            border: "none",
+                            borderRadius: BOX_RADIUS,
+                            height: "38px",
+                            padding: "0 16px",
+                            fontSize: "14px",
+                            cursor: "pointer",
+                            backgroundColor: COLORS.PURPLE,
+                            color: "white",
+                            fontWeight: 500,
+                            boxShadow: BOX_SHADOW,
+                            transition: "background-color 0.2s, transform 0.1s",
+                        }}
+                        onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
+                        onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
                     >
-                    Add Variable
+                        Add Variable
                     </button>
                 </div>
-                <div style={{
-                    top: LIBRARY_Y_SPACING * (boxes.filter((boxStack) => boxStack.boxes.some((box) => box.isOriginal)).length + 1) + (boxes.map((boxStack) => {
-                        if (boxStack.boxes.some(box => box.isOriginal)) {
-                            return boxStack.boxes.length - 1;
-                        }
-                    }).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT + (LIBRARY_Y_SPACING + 18),
-                    position: "absolute",
-                    height: "200px",
-                    width: "10px",
-                }}>
-
+                <div 
+                    style={{
+                        top: LIBRARY_Y_SPACING * (boxes.filter((boxStack) => boxStack.boxes.some((box) => box.isOriginal)).length + 1) + (boxes.map((boxStack) => {
+                            if (boxStack.boxes.some(box => box.isOriginal)) {
+                                return boxStack.boxes.length - 1;
+                            }
+                        }).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT + (LIBRARY_Y_SPACING + 18),
+                        position: "absolute",
+                        height: "200px",
+                        width: "10px",
+                    }}
+                ></div>
                 </div>
-                </div>
-            </div>
             </div>
             {/* Display boxes */}
             {boxes.flatMap((boxStack) => boxStack.boxes).map((box) => {
-                // Skip rendering empty sub blocks directly - they're rendered inside their parent blocks
-                if (box.type === BOX_TYPES.EMPTY_SUB_BLOCK) return null;
-                if (box.isOriginal) return null;
-
-                const isDragging = boxes.some(boxStack2 => 
-                    boxStack2.boxes.some(b => b.id === box.id) && boxStack2.isDragging);
-                const isSubBlock = box.type === BOX_TYPES.SUB_BLOCK;
-                
-                return (
-                    <div
-                        key={box.id}
-                        ref={(el) => {
-                            boxRefs.current[box.id] = el;
-                        }}
-                        onMouseDown={(e) => {
-                            e.stopPropagation();
-                            handleMouseDown(e, box.id);
-                        }}
-                        style={{
-                            position: "absolute",
-                            left: box.x + box.indentation * BOX_HEIGHT,
-                            top: box.y + BOX_HEIGHT * box.verticalOffset,
-                            height: isSubBlock ? SUB_BLOCK_HEIGHT : BOX_HEIGHT,
-                            minWidth: isSubBlock ? "auto" : BOX_WIDTH,
-                            backgroundColor: box.color,
-                            cursor: isDragging ? "grabbing" : "grab",
-                            userSelect: "none",
-                            zIndex: box.indentation + 100 * boxes.findIndex(boxStack => boxStack.boxes.some(b => b.id === box.id)),
-                            borderRadius: isSubBlock ? `${BOX_RADIUS}px` : `${BOX_RADIUS/2}px ${BOX_RADIUS}px ${BOX_RADIUS}px ${BOX_RADIUS/2}px`,
-                            boxShadow: isDragging ? DRAGGING_SHADOW : BOX_SHADOW,
-                            transition: "box-shadow 0.2s",
-                            display: "flex",
-                            alignItems: "center",
-                            paddingLeft: isSubBlock ? 8 : 12,
-                            paddingRight: 12,
-                            fontWeight: isSubBlock ? 400 : 500,
-                            fontSize: isSubBlock ? "14px" : "15px",
-                            border: box.isOriginal ? `2px solid ${box.color === COLORS.EMPTY ? "#ced4da" : box.color}` : "none",
-                            borderLeftWidth: isSubBlock ? 2 : 0,
-                        }}
-                    >
-                        <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            height: "100%",
-                            gap: "2px",
-                        }}>
-                            {renderContents(box, box.isOriginal)}
-                        </div>
-                    </div>
-                );
+                if (box.type === BOX_TYPES.EMPTY_SUB_BLOCK || box.isOriginal) return null;
+                return (renderBox(box));
             })}
 
             {/* Drop target indicator */}
