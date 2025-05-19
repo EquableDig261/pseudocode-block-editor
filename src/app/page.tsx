@@ -1,7 +1,7 @@
 "use client";
 
 import WrittenEditor from "@/components/WrittenEditor";
-import BlockEditor from "@/components/BlockEditor";
+import BlockEditor from "@/components/BlockEditor/index";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 

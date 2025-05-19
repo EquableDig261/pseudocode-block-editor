@@ -5,6 +5,7 @@
 }
 
 input[type="number"] {
+    appearance: textfield;
     -moz-appearance: textfield;
 }
 
@@ -31,16 +32,16 @@ input[type="number"] {
 
 /* The only visible part: the draggable thumb */
 ::-webkit-scrollbar-thumb {
-  background-color: #666;
+  background-color: #555;
   border-radius: 4px;
 }
 
 /* Optional: hover effect */
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #555;
+  background-color: #444;
 }
 
 .your-scroll-element {
   scrollbar-width: thin;
-  scrollbar-color: #666 transparent; /* thumb color, track color */
+  scrollbar-color: #555 transparent; /* thumb color, track color */
 }
