@@ -6,6 +6,8 @@ import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, LIBRARY_X_SPACING, BOX_RADIUS
 import { serialize} from "./utils/serialization"
 import { getEmptySubBlock, getEmptyInputBlock } from "./utils/utility"
 import { deserialize } from "./utils/deserialization"
+import { createMouseHandlers } from "./hooks/useMouseHandlers"
+import { updateInputBox, getContents } from "./utils/boxOperations";
 import './styles/BlockEditor.css'
 
 
@@ -13,80 +15,7 @@ import './styles/BlockEditor.css'
 
 let addVariableOffset = 0
 
-const getContents = (box: Box): (string | Box)[] => {
-    return box.contents.flatMap(content => {
-        if (typeof content === "string") {
-            return [content];
-        } else {
-            return [content, ...getContents(content)];
-        }
-    });
-};
 
-const replaceContents = (contents: (string | Box)[], dropTargetId: number, replacementBox: Box): (string | Box)[] => {
-    return contents.map((content) => {
-        if (typeof content === "string") {
-            return content;
-        }
-        if (dropTargetId === content.id) {
-            return {
-                ...replacementBox,
-                x: 0,
-                y: 0,
-                indentation: 0,
-                acceptedReturnTypes: content.acceptedReturnTypes,
-            };
-        }
-        return {
-            ...content,
-            contents: replaceContents(content.contents, dropTargetId, replacementBox)
-        }
-    })
-}
-
-const removeSubBox = (targetId: number, box: Box, newEmptyBoxId: number, newEmptyBoxType: string | null): Box => {
-    if (box.id === targetId) {
-        return getEmptySubBlock(newEmptyBoxId, box.acceptedReturnTypes ?? newEmptyBoxType);
-    }
-    return {...box, contents: box.contents.map((content) => {
-        if (typeof content === "string") return content;
-        return removeSubBox(targetId, content, newEmptyBoxId, newEmptyBoxType);
-    })}
-}
-
-const boxIsASubBoxOf = (target: Box, box: Box): boolean => {
-    for (const content of box.contents) {
-        if (typeof content === "string") continue;
-        if (content.id === target.id) return true;
-        if (boxIsASubBoxOf(content, target)) return true;
-    }
-    return false;
-};
-
-const recurseUpdateInputBox = (targetId : number, contents: string, boxes : (Box | string)[]) : (Box | string)[] => {
-    return boxes.map((content) => {
-        if (typeof content === "string") {
-            return content;
-        }
-        if (targetId === content.id) {
-            return {
-                ...content,
-                contents:[contents]
-            };
-        }
-        return {
-            ...content,
-            contents: recurseUpdateInputBox(targetId, contents, content.contents)
-        }
-    })
-}
-
-const updateInputBox = (boxes: BoxStack[], targetId: number, contents: string) : (BoxStack[]) => {
-    return boxes.map((boxStack) => ({
-        ...boxStack,
-        boxes: recurseUpdateInputBox(targetId, contents, boxStack.boxes),
-      } as BoxStack));
-}
 
 export default function BlockEditor() {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -139,233 +68,22 @@ export default function BlockEditor() {
     addVariableOffset = LIBRARY_Y_SPACING * (originalBoxes.length) + (originalBoxes.map((boxStack) => 
             boxStack.boxes.length - 1
     ).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT
-    
+
+    const { handleMouseDown, handleMouseMove, handleMouseUp } = createMouseHandlers({
+        containerRef,
+        boxRefs,
+        nextId,
+        boxes,
+        setBoxes,
+        grabOffset,
+        setGrabOffset,
+        setDropTargetBox,
+        setDraggingBox,
+        dropTargetBox,
+        draggingBox
+    });
 
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!containerRef.current) return;
-            const containerRect = containerRef.current.getBoundingClientRect();
-
-            const boxX = e.clientX - containerRect.left - grabOffset.x;
-            const boxY = e.clientY - containerRect.top - grabOffset.y;
-            const mouseX = e.clientX - containerRect.left;
-            const mouseY = e.clientY - containerRect.top;
-
-            if (!draggingBox) return;
-            const draggedBoxStack = boxes.find((boxStack) => 
-                boxStack.boxes.some((box) => box.id === draggingBox.id)
-            );
-            const draggedBoxIndex = draggedBoxStack?.boxes.findIndex((box) => 
-                box.id === draggingBox.id
-            );
-            if (!draggedBoxStack || draggedBoxIndex === -1 || draggedBoxIndex === undefined) return;
-
-            // Set the position of the dragging box stack to the position of the mouse
-            setBoxes((prev) =>
-                prev.map((boxStack) => {
-                    if (!boxStack.isDragging) return boxStack;
-                    return {
-                        boxes: boxStack.boxes.map((box, index) => ({
-                            ...box,
-                            x: boxX + boxStack.boxes[0].indentation * BOX_HEIGHT,
-                            y: boxY + (index - draggedBoxIndex) * BOX_HEIGHT,
-                        })),
-                        isDragging: boxStack.isDragging,
-                    };                    
-                })
-            );
-
-            const draggingBoxStack = boxes.find((boxStack) => boxStack.isDragging);
-            if (!draggingBoxStack) return;
-
-            let closestTarget: Box | null = null;
-
-            // Find the closest target that the mouse is within
-            if (draggingBox.type !== BOX_TYPES.SUB_BLOCK) {
-                boxes.forEach((boxStack) => {
-                    boxStack.boxes.forEach((box) => {
-                        const beingDragged = draggingBoxStack.boxes.some(
-                            (draggedBox) => draggedBox.id === box.id
-                        );
-                        if (beingDragged || box.isOriginal) return;
-                        if (box.type === BOX_TYPES.SUB_BLOCK) return;
-
-                        const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
-                                                Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseY) < BOX_HEIGHT / 2
-                        const distanceToCentreOfTarget = Math.hypot(box.x + BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER  || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, box.y + (BOX_HEIGHT * 1.5) - mouseY)
-                        const closestDistanceToCentre = closestTarget ? Math.hypot(closestTarget.x +  BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, closestTarget.y + (BOX_HEIGHT * 1.5) - mouseY) : Infinity;
-
-                        if (mouseWithinTarget && distanceToCentreOfTarget < closestDistanceToCentre) {
-                            closestTarget = box;
-                        }
-                    });
-                });
-                if (closestTarget) {
-                    const draggingStackLength = draggingBoxStack.boxes.length;
-                    setBoxes((prevBoxes) =>
-                        prevBoxes.map((boxStack) => {
-                            const targetIndex = boxStack.boxes.findIndex((box) => closestTarget && box.id === closestTarget.id);
-                            if (targetIndex === -1) return boxStack;
-                            return {
-                                ...boxStack,
-                                boxes: boxStack.boxes.map((box, index) => ({
-                                    ...box,
-                                    verticalOffset: index > targetIndex ? draggingStackLength : 0,
-                                })),
-                            };
-                        })
-                    );
-                } else {
-                    // Reset heights if no target
-                    setBoxes((prevBoxes) =>
-                        prevBoxes.map((boxStack) => ({
-                            ...boxStack,
-                            boxes: boxStack.boxes.map((box) => ({ ...box, verticalOffset: 0 })),
-                        }))
-                    );
-                }
-            } else {
-                // Only allow dropping subBlocks into emptySubBlocks
-                boxes.forEach((boxStack) => {
-                    boxStack.boxes.forEach((box) => {
-                        getContents(box).forEach(content => {
-                            if(box.isOriginal) return;
-                            if(boxIsASubBoxOf(box, draggingBox)) return;
-                            if (
-                                typeof content !== "string" &&
-                                content.type === BOX_TYPES.EMPTY_SUB_BLOCK &&
-                                boxRefs.current[content.id]
-                            ) {
-                                const ref = boxRefs.current[content.id];
-                                const rect = ref?.getBoundingClientRect();
-                                const containerRect = containerRef.current?.getBoundingClientRect();
-                                if (!rect || !containerRect) return;
-                                
-                                const relativeX = mouseX + containerRect.left;
-                                const relativeY = mouseY + containerRect.top;
-                                
-                                if (
-                                    relativeX >= rect.left &&
-                                    relativeX <= rect.right &&
-                                    relativeY >= rect.top &&
-                                    relativeY <= rect.bottom
-                                ) {
-                                    if(draggingBox.returnType && !content.acceptedReturnTypes.includes(draggingBox.returnType) && draggingBox.returnType !== RETURN_TYPES.VARIABLE) return;
-                                    closestTarget = content;
-                                }
-                            }
-                        });
-                    });
-                });
-                setBoxes((prevBoxes) =>
-                    prevBoxes.map((boxStack) => ({
-                        ...boxStack,
-                        boxes: boxStack.boxes.map((box) => ({ ...box, verticalOffset: 0 })),
-                    }))
-                );
-            }
-
-            setDropTargetBox(closestTarget);     
-        };
-
-        const handleMouseUp = (e: MouseEvent) => {
-            if (!containerRef.current) return;
-            const containerRect = containerRef.current.getBoundingClientRect();
-            const mouseX = e.clientX - containerRect.left;
-            
-            if (draggingBox && mouseX < 400) {
-                setBoxes((prev) => prev.filter(boxStack => !boxStack.isDragging))
-                setDropTargetBox(null);
-                setDraggingBox(null);
-                return;
-            }
-            if (dropTargetBox && draggingBox) {
-                setBoxes((prevBoxes) => {
-                    if (dropTargetBox.type === BOX_TYPES.EMPTY_SUB_BLOCK) {
-                        // Only allow dropping subBlocks into emptySubBlocks
-                        if (draggingBox.type !== BOX_TYPES.SUB_BLOCK) {
-                            return prevBoxes.map(boxStack => ({
-                                ...boxStack,
-                                isDragging: false
-                            }));
-                        }
-
-                        // Replace empty subblock with the dragged subblock
-                        return prevBoxes.map((boxStack) => ({
-                            ...boxStack,
-                            boxes: boxStack.boxes.map((box) => ({
-                                ...box,
-                                contents: replaceContents(box.contents, dropTargetBox.id, draggingBox)
-                            }))
-                        })).filter((boxStack) => !boxStack.isDragging);
-                    } else {
-                        // Handle dropping between blocks (for non-subBlocks)
-                        if (draggingBox.type === BOX_TYPES.SUB_BLOCK) {
-                            return prevBoxes.map(boxStack => ({
-                                ...boxStack,
-                                isDragging: false
-                            }));
-                        }
-
-                        const draggingBoxStack = prevBoxes.find((boxStack) => boxStack.isDragging);
-                        if (!draggingBoxStack) return prevBoxes;
-
-                        const targetBoxStackIndex = prevBoxes.findIndex((boxStack) =>
-                            boxStack.boxes.some((box) => box.id === dropTargetBox.id)
-                        );
-                        if (targetBoxStackIndex === -1) return prevBoxes;
-
-                        const targetBoxStack = prevBoxes[targetBoxStackIndex];
-                        const targetIndex = targetBoxStack.boxes.findIndex(
-                            (box) => box.id === dropTargetBox.id
-                        );
-
-                        const newBoxes = [...prevBoxes];
-                        
-                        const beforeTarget = targetBoxStack.boxes.slice(0, targetIndex + 1);
-                        const afterTarget = targetBoxStack.boxes.slice(targetIndex + 1);
-                        
-                        // Merge the Three categories of Boxes; Before, Dragged and After
-                        const mergedBoxes = [
-                            ...beforeTarget,
-                            ...draggingBoxStack.boxes.map((box, index) => ({
-                                ...box,
-                                x: dropTargetBox.x,
-                                y: dropTargetBox.y + BOX_HEIGHT * (index + 1),
-                                verticalOffset: 0,
-                                indentation: box.indentation + dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
-                            })),
-                            ...afterTarget.map((box) => ({
-                                ...box,
-                                y: box.y + BOX_HEIGHT * draggingBoxStack.boxes.length,
-                                verticalOffset: 0,
-                            })),
-                        ];
-
-                        // Update the target stack
-                        newBoxes[targetBoxStackIndex] = {
-                            boxes: mergedBoxes,
-                            isDragging: false,
-                        };
-
-                        // Remove the dragging stack
-                        return newBoxes.filter((boxStack) => !boxStack.isDragging);
-                    }
-                });
-            } else {
-                // Just stop dragging if no target
-                setBoxes((prevBoxes) =>
-                    prevBoxes.map((boxStack) => ({
-                        ...boxStack,
-                        isDragging: false,
-                    }))
-                );
-            }
-
-            setDropTargetBox(null);
-            setDraggingBox(null);
-        };
-
         // Store the handlers in refs
         mouseMoveHandlerRef.current = handleMouseMove;
         mouseUpHandlerRef.current = handleMouseUp;
@@ -383,175 +101,13 @@ export default function BlockEditor() {
                 document.removeEventListener("mouseup", mouseUpHandlerRef.current);
             }
         };
-    }, [grabOffset, boxes, dropTargetBox, draggingBox]);
+    }, [grabOffset, boxes, dropTargetBox, draggingBox, handleMouseMove, handleMouseUp]);
 
     useEffect(() => {
         localStorage.setItem("editorContent", serialize(boxes))
     }, [boxes])
 
-    const onMouseDown = (e: React.MouseEvent, id: number) => {
-        const ref = boxRefs.current[id];
-        if (!ref || !containerRef.current) return;
-
-        const boxRect = ref.getBoundingClientRect();
-        const offsetX = e.clientX - boxRect.left;
-        const offsetY = e.clientY - boxRect.top;
-
-        setGrabOffset({ x: offsetX, y: offsetY });
-
-        let draggingBox : Box | null = null;
-        // find the box that is currently selected
-        boxes.flatMap((boxStack) => boxStack.boxes).forEach((box) => {
-            if (box.id === id) {
-                draggingBox = box;
-                return;
-            }
-            else {
-                getContents(box).forEach((content) => {
-                    if (typeof content !== "string" && content.id === id) {
-                        draggingBox = content;
-                        return;
-                    }
-                })
-            }
-        })
-
-        if (!draggingBox) {
-            setDraggingBox(null);
-            return;
-        }
-
-        const draggingBoxStack = boxes.find(boxStack => boxStack.boxes.some(box => box.id === id));
-
-        if (draggingBoxStack) {        
-            if ((draggingBox as Box).isOriginal) {
-                const clone: BoxStack = {
-                    boxes: draggingBoxStack.boxes.map((box2) => {
-                        return {
-                            ...box2, 
-                            isOriginal: false, 
-                            id: nextId.current++, 
-                            contents: box2.contents.map((content) => 
-                                typeof content !== "string" && content.type === BOX_TYPES.EMPTY_SUB_BLOCK 
-                                    ? getEmptySubBlock(nextId.current++, content.acceptedReturnTypes) :
-                                typeof content !== "string" && box2.returnType && (content.type === BOX_TYPES.NUM_INPUT || content.type === BOX_TYPES.TEXT_INPUT || content.type === BOX_TYPES.BOOL_INPUT)
-                                    ? getEmptyInputBlock(nextId.current++, box2.returnType)
-                                    : content
-                            )
-                        }
-                    }),
-                    isDragging: true,
-                };
-                setDraggingBox(clone.boxes.find(box2 => draggingBox && box2.type === draggingBox.type) || clone.boxes[0]);
-                setBoxes((prev) => [...prev, clone]);
-            } else {
-                setDraggingBox(draggingBox);
-                const boxStackIndex = boxes.findIndex((boxStack) =>
-                    boxStack.boxes.some((box) => box.id === id)
-                );
-            
-                if (boxStackIndex === -1) return;
-                
-                setBoxes((prev) => {
-                    
-                    const newBoxes = [...prev];
-                    const originalBoxStack = { ...newBoxes[boxStackIndex] };
-                    const boxIndex = originalBoxStack.boxes.findIndex((box) => box.id === id);
-                    
-                    let remainingBoxes = originalBoxStack.boxes.slice(0, boxIndex);
-                    let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
-                
-                    
-                    if (!draggingBox) return prev;
-                    const dragIndentation = draggingBox.indentation + (draggingBox.type === BOX_TYPES.MID_WRAPPER ? 1 : 0)
-
-                    let endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
-                    let startIndex = boxIndex;
-                    
-                    if (draggingBox.type === BOX_TYPES.WRAPPER) {
-                        endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
-                    }
-                    else if (draggingBox.type === BOX_TYPES.END_WRAPPER) {
-                        startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBox && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
-                        endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
-                    }
-
-                    if (endIndex === -2) {
-                        endIndex = originalBoxStack.boxes.length - 1
-                    }
-                    draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
-                    remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
-
-                    if (remainingBoxes.length === 0) {
-                        newBoxes.splice(boxStackIndex, 1);
-                    }
-                    else {
-                        newBoxes[boxStackIndex] = {
-                            ...originalBoxStack,
-                            boxes: remainingBoxes.map((box, index) => { 
-                                return {
-                                    ...box, 
-                                    y: remainingBoxes[0].y + index * BOX_HEIGHT
-                                }
-                            }),
-                        };
-                    }
-                    
-                    // calculate indentation on each box
-                    let currentIndentation = 0;
-                    let previousIndentation = 0;
-
-                    const newBoxStack: BoxStack = {
-                        boxes: draggedBoxes.map((box) => {
-                            previousIndentation = currentIndentation;
-                            if (box.type === BOX_TYPES.WRAPPER) {
-                                currentIndentation += 1;
-                            } else if (box.type === BOX_TYPES.END_WRAPPER) {
-                                currentIndentation -= 1;
-                                previousIndentation -= 1;
-                            } else if (box.type === BOX_TYPES.MID_WRAPPER) {
-                                previousIndentation -= 1;
-                            }
-                            return {
-                                ...box, 
-                                x: box.x + draggedBoxes[0].indentation * BOX_HEIGHT, 
-                                indentation: previousIndentation
-                            }
-                        }),
-                        isDragging: true,
-                    };
-                    newBoxes.push(newBoxStack);
-                    return newBoxes;
-                });
-            }
-        }
-        else {
-            setDraggingBox(draggingBox);
-            setBoxes((prev) => {
-                if (!draggingBox) return prev;
-                
-                const newBoxes = prev.map((boxStack) => ({
-                    ...boxStack,
-                    boxes: boxStack.boxes.map((box) =>
-                        draggingBox ? removeSubBox(draggingBox.id, box, nextId.current++, draggingBox.returnType) : box
-                    ),
-                }));
-
-                let boxX = e.clientX - grabOffset.x;
-                let boxY = e.clientX - grabOffset.x;
-
-                if (containerRef.current) {
-                    const containerRect = containerRef.current.getBoundingClientRect();
-                
-                    boxX = e.clientX - containerRect.left - grabOffset.x;
-                    boxY = e.clientY - containerRect.top - grabOffset.y;
-                }
-                newBoxes.push({boxes: [{...draggingBox, x: boxX, y: boxY}], isDragging: true})
-                return newBoxes;
-            });
-        }
-    };
-
+    
     const handleSubmit = () => {
         const newVar = newVariable
 
@@ -769,7 +325,7 @@ export default function BlockEditor() {
                             onMouseDown={(e) => {
                                 if (!isEmptySubBlock) {
                                     e.stopPropagation();
-                                    onMouseDown(e, content.id);
+                                    handleMouseDown(e, content.id);
                                 }
                             }}
                             style={{
@@ -866,7 +422,7 @@ export default function BlockEditor() {
                         }}
                         onMouseDown={(e) => {
                             e.stopPropagation();
-                            onMouseDown(e, box.id);
+                            handleMouseDown(e, box.id);
                         }}
                         style={{
                             position: "absolute",
@@ -1004,7 +560,7 @@ export default function BlockEditor() {
                         }}
                         onMouseDown={(e) => {
                             e.stopPropagation();
-                            onMouseDown(e, box.id);
+                            handleMouseDown(e, box.id);
                         }}
                         style={{
                             position: "absolute",
