@@ -75,3 +75,17 @@ export const updateInputBox = (boxes: BoxStack[], targetId: number, contents: st
         boxes: recurseUpdateInputBox(targetId, contents, boxStack.boxes),
       } as BoxStack));
 }
+
+export const value = (contentId: number, boxes: BoxStack[]) => {
+    let result = "";
+    boxes.forEach((boxStack) => {
+        boxStack.boxes.forEach((box) => {
+        getContents(box).forEach((content2) => {
+            if (typeof content2 !== "string" && content2.id === contentId) {
+            result = content2.contents[0] as string;
+            }
+        });
+        });
+    });
+    return result;
+};

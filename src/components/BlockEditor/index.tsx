@@ -7,35 +7,23 @@ import { serialize} from "./utils/serialization"
 import { getEmptySubBlock, getEmptyInputBlock } from "./utils/utility"
 import { deserialize } from "./utils/deserialization"
 import { createMouseHandlers } from "./hooks/useMouseHandlers"
-import { updateInputBox, getContents } from "./utils/boxOperations";
+import { updateInputBox, value } from "./utils/boxOperations";
 import './styles/BlockEditor.css'
-
-
-
-
-let addVariableOffset = 0
-
-
 
 export default function BlockEditor() {
     const containerRef = useRef<HTMLDivElement>(null);
     const boxRefs = useRef<{ [key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null }>({});
     const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
     const mouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
-    let libId = 0;
-    const emptyLibSubBlock = (subBoxTypes: string[]) => {
-        return getEmptySubBlock(libId++, subBoxTypes);
-    }
-    const inputLibSubBlock = (type: string) => {
-        return getEmptyInputBlock(libId++, type);
-    }
+
+    const nextId = useRef(0);
     
     // library of Boxes auto dynamically assigned to Stacks
     let heightOffset = 0;
     const originalBoxes: BoxStack[] = LIBRARY_BOXES.map((stack, index) => {
         heightOffset += stack.boxes.length - 1;
         return {boxes: stack.boxes.map((b, i) => ({
-            id: libId++,
+            id: nextId.current++,
             x: LIBRARY_X_SPACING,
             y: LIBRARY_Y_SPACING * (index) + i * BOX_HEIGHT + (heightOffset - stack.boxes.length + 1) * BOX_HEIGHT,
             isOriginal: true,
@@ -45,8 +33,8 @@ export default function BlockEditor() {
             type: b.type,
             contents: b.contents.map(content => {
                 if (typeof content === "string") return content;
-                if (content.subBoxType === SUB_BOX_TYPES.INPUT) return inputLibSubBlock(content.returnTypes[0]);
-                return emptyLibSubBlock(content.returnTypes);
+                if (content.subBoxType === SUB_BOX_TYPES.INPUT) return getEmptyInputBlock(nextId.current++, content.returnTypes[0]);
+                return getEmptySubBlock(nextId.current++, content.returnTypes);
             }),
             returnType: b.returnType,
             acceptedReturnTypes: [],
@@ -55,8 +43,6 @@ export default function BlockEditor() {
         };
     });
 
-    const nextId = useRef(libId);
-
     const [boxes, setBoxes] = useState<BoxStack[]>(() => {
         return originalBoxes.concat(deserialize(nextId));
     });
@@ -64,10 +50,8 @@ export default function BlockEditor() {
     const [dropTargetBox, setDropTargetBox] = useState<Box | null>(null);
     const [draggingBox, setDraggingBox] = useState<Box | null>(null);
     const [newVariable, setNewVariable] = useState("");
-
-    addVariableOffset = LIBRARY_Y_SPACING * (originalBoxes.length) + (originalBoxes.map((boxStack) => 
-            boxStack.boxes.length - 1
-    ).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT
+    
+    const variableAdditionYOffset = LIBRARY_Y_SPACING * (originalBoxes.length) + (originalBoxes.map((boxStack) => boxStack.boxes.length - 1).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0) * BOX_HEIGHT;
 
     const { handleMouseDown, handleMouseMove, handleMouseUp } = createMouseHandlers({
         containerRef,
@@ -84,16 +68,13 @@ export default function BlockEditor() {
     });
 
     useEffect(() => {
-        // Store the handlers in refs
         mouseMoveHandlerRef.current = handleMouseMove;
         mouseUpHandlerRef.current = handleMouseUp;
 
-        // Add event listeners
         document.addEventListener("mousemove", handleMouseMove);
         document.addEventListener("mouseup", handleMouseUp);
 
         return () => {
-            // Remove event listeners
             if (mouseMoveHandlerRef.current) {
                 document.removeEventListener("mousemove", mouseMoveHandlerRef.current);
             }
@@ -136,23 +117,7 @@ export default function BlockEditor() {
         }
     }
 
-    const setInputBoxes = (targetId: number, value: string) => {
-        setBoxes((prev) => updateInputBox(prev, targetId, value))
-    }
-
-    const value = (contentId: number) => {
-        let result = "";
-        boxes.forEach((boxStack) => {
-          boxStack.boxes.forEach((box) => {
-            getContents(box).forEach((content2) => {
-              if (typeof content2 !== "string" && content2.id === contentId) {
-                result = content2.contents[0] as string;
-              }
-            });
-          });
-        });
-        return result;
-      };
+    
 
     const renderContents = (box: Box, isOriginal: boolean) => {
         return box.contents.map((content, i) => {
@@ -189,7 +154,7 @@ export default function BlockEditor() {
                         }}
                         onChange={(e) => {
                             if (!isOriginal) {
-                                setInputBoxes(content.id, e.target.value);
+                                setBoxes((prev) => updateInputBox(prev, content.id, e.target.value));
                                 const el = boxRefs.current[content.id];
                                 if (el) {
                                     el.style.width = `${Math.max(el.scrollWidth, 40)}px`;
@@ -202,7 +167,7 @@ export default function BlockEditor() {
                                 e.stopPropagation();
                             }
                         }}
-                        value={value(content.id)}
+                        value={value(content.id, boxes)}
                         style={{
                             color: "black",
                             borderRadius: BOX_RADIUS,
@@ -242,13 +207,13 @@ export default function BlockEditor() {
                     return (<select
                         key={`box-${content.id}`}
                         ref={(el) => { boxRefs.current[content.id] = el; }}
-                        onChange={(e) => (!isOriginal) ? setInputBoxes(content.id, e.target.value) : null}
+                        onChange={(e) => (!isOriginal) ? setBoxes((prev) => updateInputBox(prev, content.id, e.target.value)) : null}
                         onMouseDown={(e) => {
                             if (!isEmptySubBlock) {
                                 e.stopPropagation();
                             }
                         }}
-                        value={value(content.id)}
+                        value={value(content.id, boxes)}
                         style={{
                             color:"black",
                             borderRadius: BOX_RADIUS,
@@ -477,7 +442,7 @@ export default function BlockEditor() {
                 <div
                     style={{
                     position: "absolute",
-                    top: addVariableOffset,
+                    top: variableAdditionYOffset,
                     left: 20,
                     display: "flex",
                     gap: "10px",
