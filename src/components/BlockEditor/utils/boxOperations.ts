@@ -1,5 +1,5 @@
 import { Box, BoxStack } from "../types";
-import { getEmptySubBlock } from "./utility";
+import { getEmptySubBlock } from "./boxCreation";
 
 export const getContents = (box: Box): (string | Box)[] => {
     return box.contents.flatMap(content => {

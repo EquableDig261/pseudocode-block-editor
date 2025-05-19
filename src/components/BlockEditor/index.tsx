@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Box, BoxStack} from "./types"
-import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, LIBRARY_X_SPACING, BOX_RADIUS, SUB_BLOCK_HEIGHT, EMPTY_BLOCK_WIDTH, BOX_SHADOW, DRAGGING_SHADOW, RETURN_TYPES, BOX_TYPES, COLORS, SUB_BOX_TYPES, LIBRARY_BOXES} from "./constants"
+import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, BOX_RADIUS, SUB_BLOCK_HEIGHT, EMPTY_BLOCK_WIDTH, BOX_SHADOW, DRAGGING_SHADOW, RETURN_TYPES, BOX_TYPES, COLORS} from "./constants"
 import { serialize} from "./utils/serialization"
-import { getEmptySubBlock, getEmptyInputBlock } from "./utils/utility"
+import { createNewVariable, getOriginalBoxes } from "./utils/boxCreation"
 import { deserialize } from "./utils/deserialization"
 import { createMouseHandlers } from "./hooks/useMouseHandlers"
 import { updateInputBox, value } from "./utils/boxOperations";
@@ -15,33 +15,9 @@ export default function BlockEditor() {
     const boxRefs = useRef<{ [key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null }>({});
     const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
     const mouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(null);
-
     const nextId = useRef(0);
     
-    // library of Boxes auto dynamically assigned to Stacks
-    let heightOffset = 0;
-    const originalBoxes: BoxStack[] = LIBRARY_BOXES.map((stack, index) => {
-        heightOffset += stack.boxes.length - 1;
-        return {boxes: stack.boxes.map((b, i) => ({
-            id: nextId.current++,
-            x: LIBRARY_X_SPACING,
-            y: LIBRARY_Y_SPACING * (index) + i * BOX_HEIGHT + (heightOffset - stack.boxes.length + 1) * BOX_HEIGHT,
-            isOriginal: true,
-            verticalOffset: 0,
-            color: stack.color,
-            indentation: 0,
-            type: b.type,
-            contents: b.contents.map(content => {
-                if (typeof content === "string") return content;
-                if (content.subBoxType === SUB_BOX_TYPES.INPUT) return getEmptyInputBlock(nextId.current++, content.returnTypes[0]);
-                return getEmptySubBlock(nextId.current++, content.returnTypes);
-            }),
-            returnType: b.returnType,
-            acceptedReturnTypes: [],
-        })),
-        isDragging: false,
-        };
-    });
+    const originalBoxes = getOriginalBoxes(nextId);
 
     const [boxes, setBoxes] = useState<BoxStack[]>(() => {
         return originalBoxes.concat(deserialize(nextId));
@@ -88,36 +64,7 @@ export default function BlockEditor() {
         localStorage.setItem("editorContent", serialize(boxes))
     }, [boxes])
 
-    
-    const handleSubmit = () => {
-        const newVar = newVariable
-
-        if (newVar !== "") {
-            const numOriginalBoxes = boxes.filter((boxStack) => boxStack.boxes.some((box) => box.isOriginal)).length;
-            const heightOffset = boxes.map((boxStack) => {
-                if (boxStack.boxes.some(box => box.isOriginal)) {
-                    return boxStack.boxes.length - 1;
-                }
-            }).reduce((acc, val) => (acc && val) ? acc + val : acc) || 0;
-            setBoxes((prev) => [...prev, {boxes: [{
-                id: nextId.current++,
-                x: LIBRARY_X_SPACING,
-                y: LIBRARY_Y_SPACING * (numOriginalBoxes) + (heightOffset) * BOX_HEIGHT + (LIBRARY_Y_SPACING + 18),
-                isOriginal: true,
-                verticalOffset: 0,
-                color: COLORS.PURPLE,
-                indentation: 0,
-                type: BOX_TYPES.SUB_BLOCK,
-                contents: [newVar],
-                returnType: RETURN_TYPES.VARIABLE,
-                acceptedReturnTypes: [],
-            }], isDragging: false}])
-
-            setNewVariable("");
-        }
-    }
-
-    
+    // RENDERING  
 
     const renderContents = (box: Box, isOriginal: boolean) => {
         return box.contents.map((content, i) => {
@@ -423,11 +370,23 @@ export default function BlockEditor() {
                             outline: "none",
                         }}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSubmit();
+                            if (e.key === 'Enter') {
+                                const newVar = createNewVariable(newVariable, boxes, nextId.current++);
+                                if (newVar !== undefined) {
+                                    setNewVariable("");
+                                    setBoxes((previous) => [...previous, newVar]);
+                                }
+                            }
                         }}
                     />
                     <button
-                        onClick={handleSubmit}
+                        onClick={() => {
+                            const newVar = createNewVariable(newVariable, boxes, nextId.current++);
+                            if (newVar !== undefined) {
+                                setNewVariable("");
+                                setBoxes((previous) => [...previous, newVar]);
+                            }
+                        }}
                         style={{
                             border: "none",
                             borderRadius: BOX_RADIUS,

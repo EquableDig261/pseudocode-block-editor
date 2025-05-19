@@ -1,6 +1,6 @@
 import { BoxStack, LinePattern, Box } from "./../types"
 import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES, COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../constants";
-import { getEmptySubBlock, getWholeInputSubBlock } from "./utility"
+import { getEmptySubBlock, getWholeInputSubBlock } from "./boxCreation"
 
 let boxExtrusionIndentation = 0;
 
