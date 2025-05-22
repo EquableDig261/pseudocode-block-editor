@@ -2,6 +2,7 @@ import { BoxStack, LinePattern, Box } from "./../types"
 import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES} from "./../constants";
 import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../../constants"
 import { getEmptySubBlock, getWholeInputSubBlock } from "./boxCreation"
+import { ExtrudeCondition, ExtrudeConditionType } from "@/components/types";
 
 let boxExtrusionIndentation = 0;
 
@@ -92,10 +93,10 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
     EXTRUDE_CONDITIONS.forEach(condition => {
         while (text.includes(condition.text)) {
             const target = text.findIndex(str => str === condition.text);
-            
-            const leftString = (condition.l) ? getAdjacentString(text, target - 1, condition.expectedL, nextId) : null;
-            const rightString = (condition.r) ? getAdjacentString(text, target + 1, condition.expectedR, nextId) : null;
-            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: condition.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, text[target], rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
+            const extrudeVariant = getExtrudeVariant(condition, target, text)
+            const leftString = (condition.l) ? getAdjacentString(text, target - 1, extrudeVariant.expectedL, nextId) : null;
+            const rightString = (condition.r) ? getAdjacentString(text, target + 1, extrudeVariant.expectedR, nextId) : null;
+            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: extrudeVariant.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, text[target], rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
             
             const left = (leftString && leftString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
             const right = (rightString && rightString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
@@ -121,4 +122,26 @@ const getAdjacentString = (text : (string | Box)[], expectedIndex : number, acce
     }
     s.acceptedReturnTypes = acceptedTypes;
     return s;
+}
+
+const getExtrudeVariant = (condition: ExtrudeCondition, targetIndex: number, text: (string | Box)[]): ExtrudeConditionType => {
+    const leftReturnType = getSideReturnType(text, targetIndex - 1)
+    const rightReturnType = getSideReturnType(text, targetIndex + 1)
+    return condition.variants.find(variant => (leftReturnType === null || variant.expectedL.includes(leftReturnType)) && (rightReturnType === null || variant.expectedR.includes(rightReturnType))) ?? condition.variants[0];
+}
+
+const getSideReturnType = (text: (Box | string)[], index: number) => {
+    if (index  < 0 || index >= text.length) return null
+    const target = text[index]
+    console.log(target)
+    if (typeof target !== "string" && target.returnType) {
+            return target.returnType
+        }
+    else if (typeof target === "string") {
+        if (target === "true" || target === "false") return RETURN_TYPES.BOOLEAN
+        else if (!isNaN(Number(target))) return RETURN_TYPES.NUMBER
+        else if (target.match(/^(".*")|('.*')$/)) return RETURN_TYPES.STRING
+        else return null
+    }
+    return null
 }
