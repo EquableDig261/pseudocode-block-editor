@@ -1,5 +1,6 @@
 import { BoxStack, LinePattern, Box } from "./../types"
-import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES, COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../constants";
+import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES} from "./../constants";
+import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../../constants"
 import { getEmptySubBlock, getWholeInputSubBlock } from "./boxCreation"
 
 let boxExtrusionIndentation = 0;
@@ -74,7 +75,6 @@ const getTree = (text : (Box | string)[], acceptedReturnTypes: string[], nextId:
 }
 
 const extrude = (text : (Box | string)[], nextId: React.RefObject<number>) : (Box | string)[] => {
-// find the first ) and track the last ( then inner extrude what is between and return that in place of the brackets and what is between them
     let lastBrace = -1;
     text.forEach((t, index) => {
     if (t === "(") lastBrace = index;
@@ -111,15 +111,14 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
 }
 
 const getAdjacentString = (text : (string | Box)[], expectedIndex : number, acceptedTypes : string[], nextId: React.RefObject<number>) => {
-        if (expectedIndex < 0 || expectedIndex >= text.length || EXTRUDE_CONDITIONS.some(condition => condition.text === text[expectedIndex])) {
-            return getEmptySubBlock(nextId.current++, acceptedTypes)
-        } 
-        const s = text[expectedIndex];
-        if (typeof s === "string") {
-            const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
-            return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
-        }
-        s.acceptedReturnTypes = acceptedTypes;
-        return s;
-
+    if (expectedIndex < 0 || expectedIndex >= text.length || EXTRUDE_CONDITIONS.some(condition => condition.text === text[expectedIndex])) {
+        return getEmptySubBlock(nextId.current++, acceptedTypes)
+    } 
+    const s = text[expectedIndex];
+    if (typeof s === "string") {
+        const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
+        return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
     }
+    s.acceptedReturnTypes = acceptedTypes;
+    return s;
+}

@@ -1,5 +1,6 @@
 
-import { RETURN_TYPES, BOX_TYPES, COLORS, BOX_HEIGHT, LIBRARY_X_SPACING, LIBRARY_Y_SPACING, LIBRARY_BOXES, SUB_BOX_TYPES } from "../constants";
+import { BOX_TYPES, BOX_HEIGHT, LIBRARY_X_SPACING, LIBRARY_Y_SPACING, LIBRARY_BOXES, SUB_BOX_TYPES } from "../constants";
+import { RETURN_TYPES, COLORS } from "./../../constants";
 import { Box, BoxStack } from "../types"
 import { RefObject } from "react"
 

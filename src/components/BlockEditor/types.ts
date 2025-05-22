@@ -35,15 +35,6 @@ export type LinePattern = {
     boxType: string;
 };
 
-export type ExtrudeCondition = {
-  text : string,
-  l : boolean,
-  r : boolean,
-  color : string,
-  expectedL: string[],
-  expectedR: string[],
-}
-
 export type LibraryBox = {
     type: string;
     contents: (string | SubBox)[];

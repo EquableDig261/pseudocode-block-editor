@@ -2,11 +2,18 @@
 
 import WrittenEditor from "@/components/WrittenEditor";
 import BlockEditor from "@/components/BlockEditor/index";
-import { useState, useEffect } from "react";
+import Terminal from "@/components/Terminal"
+import { useRef, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+
+type TerminalHandle = {
+  runCode: () => void;
+  getInputLine: (prompt: string) => Promise<string>;
+};
 
 export default function Home() {
   const [isBlockView, setIsBlockView] = useState(false);
+  const terminalRef = useRef<TerminalHandle | null>(null);
 
   const toggleView = () => {
     console.log(localStorage.getItem("editorContent"))
@@ -21,6 +28,10 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("isBlockView", isBlockView ? "true" : "false")
   }, [isBlockView])
+
+  const handleRun = () => {
+    terminalRef.current?.runCode();
+  };
 
   return (
     <div className="flex flex-col h-screen">
@@ -49,6 +60,7 @@ export default function Home() {
           <button
             className="bg-green-600 hover:bg-green-500 px-6 py-3 rounded text-lg"
             title="Run"
+            onClick={handleRun}
           >
             ▶
           </button>
@@ -85,6 +97,7 @@ export default function Home() {
           )}
         </AnimatePresence>
       </div>
+      <Terminal ref={terminalRef}/>
     </div>
   );
 }

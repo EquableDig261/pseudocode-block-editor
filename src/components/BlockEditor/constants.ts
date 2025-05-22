@@ -1,4 +1,5 @@
-import {ExtrudeCondition, LinePattern, LibraryBox} from "./types"
+import { LinePattern, LibraryBox} from "./types"
+import { RETURN_TYPES, COLORS } from "./../constants";
 
 // Constants for styling
 export const BOX_HEIGHT = 34;
@@ -12,15 +13,6 @@ export const EMPTY_BLOCK_WIDTH = 40;
 // Box shadow for depth
 export const BOX_SHADOW = "0 2px 4px rgba(0,0,0,0.1)";
 export const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
-
-
-export const RETURN_TYPES = {
-    NUMBER: "NUMBER",
-    STRING: "STRING",
-    BOOLEAN: "BOOLEAN",
-    VARIABLE: "VARIABLE",
-    ANY: ["VARIABLE", "NUMBER", "STRING", "BOOLEAN"],
-}
 
 export const BOX_TYPES = {
     BLOCK: "BLOCK",
@@ -39,42 +31,6 @@ export const SUB_BOX_TYPES = {
     EMPTY: "EMPTY",
     INPUT:"INPUT",
 }
-
-// Colors with better contrast
-export const COLORS = {
-    ORANGE: "#FA9C1B",
-    YELLOW: "#ff922b",
-    LIGHT_GREEN: "#51cf66",
-    FOREST: "#37b24d",
-    CYAN: "#30D5C8",
-    SKYBLUE: "#4dabf7",
-    DARK_BLUE: "#00008B",
-    PURPLE: "#9775fa",
-    GREY: "#808080",
-
-    EMPTY: "#e9ecef",
-    DROP_TARGET: "#ced4da",
-    BACKGROUND: "#1e1e1e",
-}
-
-
-export const EXTRUDE_CONDITIONS : ExtrudeCondition[] = [
-  {text: "*", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "/", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "+", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "-", l: true, r: true, color: COLORS.DARK_BLUE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "==", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER, RETURN_TYPES.STRING], expectedR: [RETURN_TYPES.NUMBER, RETURN_TYPES.STRING]},
-  {text: "!=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER, RETURN_TYPES.STRING], expectedR: [RETURN_TYPES.NUMBER, RETURN_TYPES.STRING]},
-  {text: ">", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: ">=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "<", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "<=", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.NUMBER], expectedR: [RETURN_TYPES.NUMBER]},
-  {text: "NOT", l: false, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.BOOLEAN], expectedR: [RETURN_TYPES.BOOLEAN]},
-  {text: "AND", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.BOOLEAN], expectedR: [RETURN_TYPES.BOOLEAN]},
-  {text: "OR", l: true, r: true, color: COLORS.ORANGE, expectedL: [RETURN_TYPES.BOOLEAN], expectedR: [RETURN_TYPES.BOOLEAN]},
-]
-
-export const SPLITTING_PATTERN = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
 
 export const POSSIBLE_LINE_PATTERNS : LinePattern[] = [
     {pattern: /^IF(.*)THEN/, order: ["IF", {acceptedReturnTypes: [RETURN_TYPES.BOOLEAN]}, "THEN"], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
@@ -132,7 +88,7 @@ export const LIBRARY_BOXES: { boxes: LibraryBox[]; color: string; }[] = [
     {boxes: [{type: BOX_TYPES.SUB_BLOCK, contents: [{subBoxType: SUB_BOX_TYPES.INPUT, returnTypes: [RETURN_TYPES.NUMBER]}], returnType: RETURN_TYPES.NUMBER}], color: COLORS.DARK_BLUE},
     
     // return string - lGreen
-    {boxes: [{type: BOX_TYPES.SUB_BLOCK, contents: [ {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.STRING]}, "+", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.STRING]}], returnType: RETURN_TYPES.STRING}], color: COLORS.LIGHT_GREEN},
+    {boxes: [{type: BOX_TYPES.SUB_BLOCK, contents: [ {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.STRING, RETURN_TYPES.NUMBER]}, "+", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.STRING, RETURN_TYPES.NUMBER]}], returnType: RETURN_TYPES.STRING}], color: COLORS.LIGHT_GREEN},
     {boxes: [{type: BOX_TYPES.SUB_BLOCK, contents: [{subBoxType: SUB_BOX_TYPES.INPUT, returnTypes: [RETURN_TYPES.STRING]}], returnType: RETURN_TYPES.STRING}], color: COLORS.LIGHT_GREEN},
     
     // return bool - orange oper
