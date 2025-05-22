@@ -11,7 +11,8 @@ type interpretationData = {
 } 
 type variables = {
     name: string,
-    contents: (string | boolean | number),
+    isArray: boolean,
+    contents: (string | boolean | number | (string | boolean | number)[]),
 }
 
 type LinePattern = {
@@ -65,7 +66,7 @@ const endWhileInterpretation = (groups: (string | number | boolean)[], data: int
 const forInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
     if (data.currentIndent === data.realIndent)  {
         const variableIndex =  data.variables.findIndex(variable => variable.name === groups[0])
-        if (variableIndex === -1 && typeof groups[0] === "string") data.variables.push({name: groups[0] as string, contents: groups[1]})
+        if (variableIndex === -1 && typeof groups[0] === "string") data.variables.push({name: groups[0] as string, isArray: false, contents: groups[1]})
         else if (typeof data.variables[variableIndex].contents === "number" && typeof groups[3] === "number") data.variables[variableIndex].contents += groups[3] as number
         
         const variable =  data.variables.find(variable => variable.name === groups[0])
@@ -120,7 +121,7 @@ const getInterpretation = async (groups: (string | number | boolean)[], data: in
     if (data.realIndent === data.currentIndent && typeof groups[0] === "string") {
         const input = await data.getInput(groups[0] + ":");
         const variableIndex =  data.variables.findIndex(variable => variable.name === groups[0])
-        if (variableIndex === -1) data.variables.push({name: groups[0], contents: input})
+        if (variableIndex === -1) data.variables.push({name: groups[0], isArray: false, contents: input})
         else data.variables[variableIndex].contents = input
     }
     return data;
@@ -129,8 +130,12 @@ const getInterpretation = async (groups: (string | number | boolean)[], data: in
 const equalsInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
     if (data.realIndent === data.currentIndent) {
         const variableIndex =  data.variables.findIndex(variable => variable.name === groups[0])
-        if (variableIndex === -1 && typeof groups[0] === "string") data.variables.push({name: groups[0] as string, contents: groups[1]})
-        else data.variables[variableIndex].contents = groups[1]
+        let value : (string | number | boolean | string[] | number[] | boolean[]) = groups[1]
+        if (typeof groups[1] === "string" && groups[1].match(/{.*}/)) {
+            value = groups[1].replace(/[{}]/g, "").split(",").map(group => group.trim())
+        }
+            if (variableIndex === -1 && typeof groups[0] === "string") data.variables.push({name: groups[0] as string, isArray: value !== groups[1], contents: value})
+            else data.variables[variableIndex].contents = value
     }
     return data
 }
@@ -191,7 +196,17 @@ const interpretLine = async (line: string, data: interpretationData) : Promise<i
         const parts : (string | number | boolean)[] = groups.slice(1).map((group, index) => {
             let match : (string | number | boolean)[] = group.match(SPLITTING_PATTERN) ?? []
             if (pattern.replaceVariables[index]) match = match.map(item => {
-                data.variables.forEach(variable => {if (variable.name === item) item = variable.contents})
+                data.variables.forEach(variable => {
+                    if (variable.name === item) {
+                        if (variable.isArray) item = "[" + (variable.contents as (string | boolean | number)[]).join(", ") + "]"
+                        else item = variable.contents as (string | boolean | number)
+                    }
+                    else if (variable.isArray && typeof item === "string" && (item.match(/([a-zA-Z_]\w*)\[\d+\]/)?.[1] === variable.name)) {
+                        console.log((item.match(/[a-zA-Z_]\w*[(\d+)]/)?? [0])[1] as number)
+                        console.log(variable.contents as (number[] | string[] | boolean[]))
+                        item = (variable.contents as (number[] | string[] | boolean[]))[(item.match(/[a-zA-Z_]\w*\[(\d+)\]/)?? [0])[1] as number]
+                    }
+                })
                 return item;
             })
             return getValue(match)

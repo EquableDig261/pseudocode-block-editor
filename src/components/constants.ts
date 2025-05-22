@@ -1,6 +1,6 @@
 import { ExtrudeCondition } from "./types"
 
-export const SPLITTING_PATTERN = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*|\S/g
+export const SPLITTING_PATTERN = /"[^"]*"|'[^']*'|\d+(?:\.\d+)?|==|!=|<=|>=|<|>|\+|-|\*|\/|[a-zA-Z_]\w*\[\d*\]|[a-zA-Z_]\w*|{[^}]*}|\S/g
 
 export const COLORS = {
     ORANGE: "#FA9C1B",

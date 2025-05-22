@@ -96,7 +96,8 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
             const extrudeVariant = getExtrudeVariant(condition, target, text)
             const leftString = (condition.l) ? getAdjacentString(text, target - 1, extrudeVariant.expectedL, nextId) : null;
             const rightString = (condition.r) ? getAdjacentString(text, target + 1, extrudeVariant.expectedR, nextId) : null;
-            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: extrudeVariant.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, text[target], rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
+            const centreText = (condition.l ? " " : "") + text[target] + (condition.r ? " " : "")
+            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: extrudeVariant.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, centreText, rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
             
             const left = (leftString && leftString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
             const right = (rightString && rightString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
