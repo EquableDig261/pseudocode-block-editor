@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Box, BoxStack} from "./types"
-import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, BOX_RADIUS, SUB_BLOCK_HEIGHT, EMPTY_BLOCK_WIDTH, BOX_SHADOW, DRAGGING_SHADOW, RETURN_TYPES, BOX_TYPES, COLORS} from "./constants"
+import { BOX_HEIGHT, BOX_WIDTH, LIBRARY_Y_SPACING, BOX_RADIUS, SUB_BLOCK_HEIGHT, EMPTY_BLOCK_WIDTH, BOX_SHADOW, DRAGGING_SHADOW, BOX_TYPES} from "./constants"
+import { COLORS, RETURN_TYPES } from "./../constants";
 import { serialize} from "./utils/serialization"
 import { createNewVariable, getOriginalBoxes } from "./utils/boxCreation"
 import { deserialize } from "./utils/deserialization"

@@ -1,6 +1,8 @@
 import { BoxStack, LinePattern, Box } from "./../types"
-import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES, COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../constants";
-import { getEmptySubBlock, getWholeInputSubBlock } from "./boxCreation"
+import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES} from "./../constants";
+import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../../constants"
+import { getEmptySubBlock, getWholeInputSubBlock, getCSArray, getArrayIndicator, getVariableBox } from "./boxCreation"
+import { ExtrudeCondition, ExtrudeConditionType } from "@/components/types";
 
 let boxExtrusionIndentation = 0;
 
@@ -74,7 +76,6 @@ const getTree = (text : (Box | string)[], acceptedReturnTypes: string[], nextId:
 }
 
 const extrude = (text : (Box | string)[], nextId: React.RefObject<number>) : (Box | string)[] => {
-// find the first ) and track the last ( then inner extrude what is between and return that in place of the brackets and what is between them
     let lastBrace = -1;
     text.forEach((t, index) => {
     if (t === "(") lastBrace = index;
@@ -92,10 +93,11 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
     EXTRUDE_CONDITIONS.forEach(condition => {
         while (text.includes(condition.text)) {
             const target = text.findIndex(str => str === condition.text);
-            
-            const leftString = (condition.l) ? getAdjacentString(text, target - 1, condition.expectedL, nextId) : null;
-            const rightString = (condition.r) ? getAdjacentString(text, target + 1, condition.expectedR, nextId) : null;
-            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: condition.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, text[target], rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
+            const extrudeVariant = getExtrudeVariant(condition, target, text)
+            const leftString = (condition.l) ? getAdjacentString(text, target - 1, extrudeVariant.expectedL, nextId) : null;
+            const rightString = (condition.r) ? getAdjacentString(text, target + 1, extrudeVariant.expectedR, nextId) : null;
+            const centreText = (condition.l ? " " : "") + text[target] + (condition.r ? " " : "")
+            const replacement = {id: nextId.current++, x: 0, y: 0, isOriginal:false, verticalOffset:0, color: extrudeVariant.color, indentation: 0, type: BOX_TYPES.SUB_BLOCK, contents: [leftString, centreText, rightString].filter(v => v !== null), returnType: null, acceptedReturnTypes: []}
             
             const left = (leftString && leftString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
             const right = (rightString && rightString.type !== BOX_TYPES.EMPTY_SUB_BLOCK ? 1 : 0)
@@ -104,22 +106,57 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
     })
     if (typeof text[0]=== "string") {
         const s : string = text[0] as string
-        const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
-        return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), RETURN_TYPES.ANY)
+        return getInputSubBlockWithType(RETURN_TYPES.ANY, s, nextId)
     }
     return text[0]
 }
 
 const getAdjacentString = (text : (string | Box)[], expectedIndex : number, acceptedTypes : string[], nextId: React.RefObject<number>) => {
-        if (expectedIndex < 0 || expectedIndex >= text.length || EXTRUDE_CONDITIONS.some(condition => condition.text === text[expectedIndex])) {
-            return getEmptySubBlock(nextId.current++, acceptedTypes)
-        } 
-        const s = text[expectedIndex];
-        if (typeof s === "string") {
-            const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
-            return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
-        }
-        s.acceptedReturnTypes = acceptedTypes;
-        return s;
-
+    if (expectedIndex < 0 || expectedIndex >= text.length || EXTRUDE_CONDITIONS.some(condition => condition.text === text[expectedIndex])) {
+        return getEmptySubBlock(nextId.current++, acceptedTypes)
+    } 
+    const s = text[expectedIndex];
+    if (typeof s === "string") {
+        return getInputSubBlockWithType(acceptedTypes, s, nextId)
     }
+    s.acceptedReturnTypes = acceptedTypes;
+    return s;
+}
+
+const getInputSubBlockWithType = (acceptedTypes: string[], s: string, nextId: React.RefObject<number>) : Box => {
+    s = s.trim()
+    if (s.match(/^.*\[.*\]$/)) {
+        const groups = s.match(/^(.*)\[(.*)\]$/)?.slice(1)
+        if (groups === undefined) return getEmptySubBlock(nextId.current++, [RETURN_TYPES.VARIABLE])
+        return getArrayIndicator(nextId.current++, getVariableBox(nextId.current++, groups[0], [RETURN_TYPES.VARIABLE]), getTree(groups[1].match(SPLITTING_PATTERN) ?? [], [RETURN_TYPES.NUMBER], nextId))
+    } 
+    if (s.match(/^{.*}$/)) {
+        const inner = s.match(/[^{},]+/g)
+        if (inner === null) return getEmptySubBlock(nextId.current++, RETURN_TYPES.ANY)
+        const boxGroups = inner.map(inn => getTree(inn.match(SPLITTING_PATTERN) ?? [], RETURN_TYPES.ANY, nextId))
+        return getCSArray(nextId, boxGroups)
+    }
+    const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
+    return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
+}
+
+const getExtrudeVariant = (condition: ExtrudeCondition, targetIndex: number, text: (string | Box)[]): ExtrudeConditionType => {
+    const leftReturnType = getSideReturnType(text, targetIndex - 1)
+    const rightReturnType = getSideReturnType(text, targetIndex + 1)
+    return condition.variants.find(variant => (leftReturnType === null || variant.expectedL.includes(leftReturnType)) && (rightReturnType === null || variant.expectedR.includes(rightReturnType))) ?? condition.variants[0];
+}
+
+const getSideReturnType = (text: (Box | string)[], index: number) => {
+    if (index  < 0 || index >= text.length) return null
+    const target = text[index]
+    if (typeof target !== "string" && target.returnType) {
+            return target.returnType
+        }
+    else if (typeof target === "string") {
+        if (target === "true" || target === "false") return RETURN_TYPES.BOOLEAN
+        else if (!isNaN(Number(target))) return RETURN_TYPES.NUMBER
+        else if (target.match(/^(".*")|('.*')$/)) return RETURN_TYPES.STRING
+        else return null
+    }
+    return null
+}

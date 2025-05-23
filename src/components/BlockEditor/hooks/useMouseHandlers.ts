@@ -1,6 +1,7 @@
 // mouseHandlers.js
 import { Box, BoxStack } from "./../types";
-import { BOX_HEIGHT, BOX_WIDTH, BOX_TYPES, RETURN_TYPES} from "./../constants";
+import { BOX_HEIGHT, BOX_WIDTH, BOX_TYPES } from "./../constants";
+import { RETURN_TYPES } from "./../../constants"
 import { getEmptySubBlock, getEmptyInputBlock } from "../utils/boxCreation";
 import { getContents, replaceContents, removeSubBox, boxIsASubBoxOf } from "./../utils/boxOperations";
 
