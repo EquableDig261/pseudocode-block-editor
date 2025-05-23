@@ -62,7 +62,6 @@ export default function BlockEditor() {
     }, [grabOffset, boxes, dropTargetBox, draggingBox, handleMouseMove, handleMouseUp]);
 
     useEffect(() => {
-        console.log(boxes);
         localStorage.setItem("editorContent", serialize(boxes))
     }, [boxes])
 

@@ -1,7 +1,7 @@
 import { BoxStack, LinePattern, Box } from "./../types"
 import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES} from "./../constants";
 import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../../constants"
-import { getEmptySubBlock, getWholeInputSubBlock } from "./boxCreation"
+import { getEmptySubBlock, getWholeInputSubBlock, getCSArray, getArrayIndicator, getVariableBox } from "./boxCreation"
 import { ExtrudeCondition, ExtrudeConditionType } from "@/components/types";
 
 let boxExtrusionIndentation = 0;
@@ -106,8 +106,7 @@ const innerExtrude = (text : (Box | string)[], nextId: React.RefObject<number>) 
     })
     if (typeof text[0]=== "string") {
         const s : string = text[0] as string
-        const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
-        return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), RETURN_TYPES.ANY)
+        return getInputSubBlockWithType(RETURN_TYPES.ANY, s, nextId)
     }
     return text[0]
 }
@@ -118,11 +117,27 @@ const getAdjacentString = (text : (string | Box)[], expectedIndex : number, acce
     } 
     const s = text[expectedIndex];
     if (typeof s === "string") {
-        const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
-        return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
+        return getInputSubBlockWithType(acceptedTypes, s, nextId)
     }
     s.acceptedReturnTypes = acceptedTypes;
     return s;
+}
+
+const getInputSubBlockWithType = (acceptedTypes: string[], s: string, nextId: React.RefObject<number>) : Box => {
+    s = s.trim()
+    if (s.match(/^.*\[.*\]$/)) {
+        const groups = s.match(/^(.*)\[(.*)\]$/)?.slice(1)
+        if (groups === undefined) return getEmptySubBlock(nextId.current++, [RETURN_TYPES.VARIABLE])
+        return getArrayIndicator(nextId.current++, getVariableBox(nextId.current++, groups[0], [RETURN_TYPES.VARIABLE]), getTree(groups[1].match(SPLITTING_PATTERN) ?? [], [RETURN_TYPES.NUMBER], nextId))
+    } 
+    if (s.match(/^{.*}$/)) {
+        const inner = s.match(/[^{},]+/g)
+        if (inner === null) return getEmptySubBlock(nextId.current++, RETURN_TYPES.ANY)
+        const boxGroups = inner.map(inn => getTree(inn.match(SPLITTING_PATTERN) ?? [], RETURN_TYPES.ANY, nextId))
+        return getCSArray(nextId, boxGroups)
+    }
+    const returnType = !isNaN(Number(s)) ? RETURN_TYPES.NUMBER : s === "true" || s === "false" ? RETURN_TYPES.BOOLEAN : s.includes('"') || s.includes("'") ? RETURN_TYPES.STRING : RETURN_TYPES.VARIABLE;
+    return getWholeInputSubBlock((nextId.current+=2) - 2, returnType, s.replace(/"|'/g, ""), acceptedTypes)
 }
 
 const getExtrudeVariant = (condition: ExtrudeCondition, targetIndex: number, text: (string | Box)[]): ExtrudeConditionType => {
@@ -134,7 +149,6 @@ const getExtrudeVariant = (condition: ExtrudeCondition, targetIndex: number, tex
 const getSideReturnType = (text: (Box | string)[], index: number) => {
     if (index  < 0 || index >= text.length) return null
     const target = text[index]
-    console.log(target)
     if (typeof target !== "string" && target.returnType) {
             return target.returnType
         }

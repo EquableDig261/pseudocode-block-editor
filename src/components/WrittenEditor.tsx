@@ -197,7 +197,6 @@ export default function WrittenEditor() {
         onMount={handleEditorDidMount}
         onChange={(value) => {
           if (typeof window !== 'undefined' && value !== undefined) {
-            console.log(value);
             localStorage.setItem('editorContent', value);
           }
         }}

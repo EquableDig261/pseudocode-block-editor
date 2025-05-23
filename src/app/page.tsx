@@ -16,7 +16,6 @@ export default function Home() {
   const terminalRef = useRef<TerminalHandle | null>(null);
 
   const toggleView = () => {
-    console.log(localStorage.getItem("editorContent"))
     setIsBlockView((prev) => !prev)
   };
 

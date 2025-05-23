@@ -202,8 +202,6 @@ const interpretLine = async (line: string, data: interpretationData) : Promise<i
                         else item = variable.contents as (string | boolean | number)
                     }
                     else if (variable.isArray && typeof item === "string" && (item.match(/([a-zA-Z_]\w*)\[\d+\]/)?.[1] === variable.name)) {
-                        console.log((item.match(/[a-zA-Z_]\w*[(\d+)]/)?? [0])[1] as number)
-                        console.log(variable.contents as (number[] | string[] | boolean[]))
                         item = (variable.contents as (number[] | string[] | boolean[]))[(item.match(/[a-zA-Z_]\w*\[(\d+)\]/)?? [0])[1] as number]
                     }
                 })

@@ -78,3 +78,65 @@ export const getOriginalBoxes = (id: RefObject<number>): BoxStack[] => {
         };
     });
 }
+
+export const getCSArray = (nextId: React.RefObject<number>, contents: Box[]) : Box => {
+    const cSContents = recurseGetCSArray(nextId, contents)
+    const r =  {acceptedReturnTypes: RETURN_TYPES.ANY, color: COLORS.PURPLE, contents: ["{", cSContents  ,"}" ], id: nextId.current++, indentation: 0, isOriginal: false, returnType: RETURN_TYPES.VARIABLE, type: BOX_TYPES.SUB_BLOCK, verticalOffset: 0, x: 0, y: 0}
+    return r
+}
+
+const recurseGetCSArray = (nextId: React.RefObject<number>, remainingContents: Box[]) : Box => {
+    const content = remainingContents[0] ?? getEmptySubBlock(nextId.current++, RETURN_TYPES.ANY);
+    return remainingContents.length > 1
+        ? {
+            id: nextId.current++,
+            acceptedReturnTypes: RETURN_TYPES.ANY,
+            color: COLORS.PURPLE,
+            indentation: 0,
+            isOriginal: false,
+            returnType: RETURN_TYPES.VARIABLE,
+            type: BOX_TYPES.SUB_BLOCK,
+            verticalOffset: 0,
+            x: 0,
+            y: 0,
+            contents: [content, ", ", recurseGetCSArray(nextId, remainingContents.slice(1))]
+        }
+        : content;
+}
+
+export const getArrayIndicator = (id: number, variableBox: Box, numberBox: Box) : Box => {
+    return {
+        id: id,
+        acceptedReturnTypes: [RETURN_TYPES.VARIABLE],
+        color: COLORS.PURPLE,
+        indentation: 0,
+        isOriginal: false,
+        returnType: RETURN_TYPES.VARIABLE,
+        type: BOX_TYPES.SUB_BLOCK,
+        verticalOffset: 0,
+        x: 0,
+        y: 0,
+        contents: [
+            variableBox,
+            "[",
+            numberBox,
+            "]"
+        ]
+    }
+}
+
+export const getVariableBox = (id: number, contents: string, acceptedReturnTypes: string[]) : Box => {
+    return {
+        id: id,
+        contents: [contents],
+        acceptedReturnTypes: acceptedReturnTypes,
+        color: COLORS.PURPLE,
+        indentation: 0,
+        isOriginal: false,
+        returnType: RETURN_TYPES.VARIABLE,
+        type: BOX_TYPES.SUB_BLOCK,
+        verticalOffset: 0,
+        x: 0,
+        y: 0,
+    }
+}
