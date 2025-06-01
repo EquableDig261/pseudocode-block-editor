@@ -1,8 +1,14 @@
 import { EXTRUDE_CONDITIONS, SPLITTING_PATTERN } from "./constants"
 
+type indentationData = {
+    beginIndentLine: number,
+    hasTriggeredIf: boolean,
+}
+
 type interpretationData = {
     currentLineNumber: number,
     currentIndent: number,
+    indentationData: indentationData[],
     realIndent: number,
     variables: variables[],
     lines: string[],
@@ -23,91 +29,119 @@ type LinePattern = {
     replaceVariables: boolean[];
 };
 
-
 const ifInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent && groups[0] === true) data.currentIndent += 1;
-    data.realIndent += 1;
+    if (data.currentIndent === data.realIndent && groups[0] === true) {
+        data.currentIndent += 1;
+        data.indentationData[data.indentationData.length - 1].hasTriggeredIf = true;
+        data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false});
+    }
     return data;
 }
 
 const elseIfInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent - 1 && groups[0] === true) data.currentIndent += 1;
-    else if (data.currentIndent === data.realIndent) data.currentIndent -= 1;
+    if (data.currentIndent === data.realIndent && !data.indentationData[data.indentationData.length - 1].hasTriggeredIf && groups[0] === true) {
+        data.currentIndent += 1;
+        data.indentationData[data.indentationData.length - 1].hasTriggeredIf = true
+        data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false})
+    }
+    else if (data.currentIndent > data.realIndent) {
+        data.currentIndent -= 1;
+        data.indentationData.pop()
+    }
     return data;
 }
 
 const elseInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent - 1) data.currentIndent += 1;
-    else if (data.currentIndent === data.realIndent) data.currentIndent -= 1;
+    if (data.currentIndent === data.realIndent && !data.indentationData[data.indentationData.length - 1].hasTriggeredIf) {
+        data.currentIndent += 1;
+        data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false})
+    } else if (data.currentIndent > data.realIndent) {
+        data.currentIndent -= 1;
+        data.indentationData.pop()
+    }
     return data;
 }
 
 const endIfInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent) data.currentIndent -= 1;
-    data.realIndent -= 1;
+    if (data.currentIndent > data.realIndent) {
+        data.currentIndent -= 1;
+        data.indentationData.pop()
+    }
+    if (data.currentIndent === data.realIndent) {
+        data.indentationData[data.indentationData.length - 1].hasTriggeredIf = false
+    }
     return data;
 }
 
 const whileInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent && groups[0] === true) data.currentIndent += 1;
-    data.realIndent += 1;
+    if (data.currentIndent === data.realIndent && groups[0] === true) {
+        data.currentIndent += 1;
+        data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false})
+    }
     return data;
 }
 
 const endWhileInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent) { 
+    if (data.currentIndent > data.realIndent) { 
         data.currentIndent -= 1;
-        data.currentLineNumber = getLastWhile(data.lines, data.currentLineNumber)
+        data.currentLineNumber = data.currentLineNumber = data.indentationData[data.indentationData.length - 1].beginIndentLine
+        data.indentationData.pop()
     }
-    data.realIndent -= 1;
     return data;
 }
 
 const forInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
     if (data.currentIndent === data.realIndent)  {
         const variableIndex =  data.variables.findIndex(variable => variable.name === groups[0])
-        if (variableIndex === -1 && typeof groups[0] === "string") data.variables.push({name: groups[0] as string, isArray: false, contents: groups[1]})
+        if (variableIndex === -1 && typeof groups[0] === "string") {
+            data.variables.push({name: groups[0] as string, isArray: false, contents: groups[1]})
+        }
         else if (typeof data.variables[variableIndex].contents === "number" && typeof groups[3] === "number") data.variables[variableIndex].contents += groups[3] as number
-        
+    
         const variable =  data.variables.find(variable => variable.name === groups[0])
-        if (variable !== undefined && variable.contents <= groups[2])  data.currentIndent += 1;
+        if (variable !== undefined && variable.contents <= groups[2])  {
+            data.currentIndent += 1;
+            data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false})
+        }
     }
-    data.realIndent += 1;
     return data;
 }
 
 const endForInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent) { 
+    if (data.currentIndent > data.realIndent) { 
         data.currentIndent -= 1;
-        data.currentLineNumber = getLastFor(data.lines, data.currentLineNumber)
+        data.currentLineNumber = data.indentationData[data.indentationData.length - 1].beginIndentLine
+        data.indentationData.pop()
     }
-    data.realIndent -= 1;
     return data;
 }
 
 const repeatInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent) data.currentIndent += 1;
-    data.realIndent += 1;
+    if (data.currentIndent === data.realIndent) {
+        data.currentIndent += 1;
+        data.indentationData.push({beginIndentLine: data.currentLineNumber, hasTriggeredIf: false})
+    }
     return data;
 }
 
 const untilInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.currentIndent === data.realIndent) {
+    if (data.currentIndent > data.realIndent) {
         data.currentIndent -= 1;
-        if (groups[0] === false) data.currentLineNumber = getLastRepeat(data.lines, data.currentLineNumber)
+        if (groups[0] === false) {
+            data.currentLineNumber = data.currentLineNumber = data.indentationData[data.indentationData.length - 1].beginIndentLine
+        }
+        data.indentationData.pop()
     }
-    data.realIndent -= 1;
     return data;
 }
 
 const beginInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    data.realIndent = 0
-    data.currentIndent = 0
+    data.currentIndent = 1
+    data.indentationData.push({beginIndentLine: data.currentIndent, hasTriggeredIf: false})
     return data
 }
 
 const endInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    data.realIndent = 0
     data.currentIndent = -1
     return data
 }
@@ -172,6 +206,7 @@ export const interpret = async (setLines: React.Dispatch<React.SetStateAction<st
     if (!editorContent) editorContent = ""
     const lines:string[] = editorContent.split("\n");
     let data : interpretationData = {
+        indentationData: [],
         currentLineNumber: 1,
         currentIndent: -1,
         realIndent: 0,
@@ -188,11 +223,16 @@ export const interpret = async (setLines: React.Dispatch<React.SetStateAction<st
 }
 
 const interpretLine = async (line: string, data: interpretationData) : Promise<interpretationData> => {
+    let cleaned = line.replace(/\u00A0|\u2003|\u2002|\u2009/g, ' ');
+    cleaned = line.replace(/\t/g, '    ');
+    const matchResult = cleaned.match(/^\s*/);
+    const whitespaceArray = matchResult && typeof matchResult[0] === "string" ? matchResult[0].split("") : "";
+    data.realIndent = Math.ceil(whitespaceArray.length / 4)
     line = line.trim()
     const pattern = POSSIBLE_LINE_PATTERNS.find(pattern => line.match(pattern.pattern))
     if (pattern !== undefined) {
         const groups = line.match(pattern.pattern)
-        if (groups === null) return data
+        if (groups === null) return data   
         const parts : (string | number | boolean)[] = groups.slice(1).map((group, index) => {
             let match : (string | number | boolean)[] = group.match(SPLITTING_PATTERN) ?? []
             if (pattern.replaceVariables[index]) match = match.map(item => {
@@ -308,50 +348,50 @@ const getAdjacentString = (text : (string | boolean| number)[], expectedIndex : 
     return text[expectedIndex];
 }
 
-const getLastWhile = (lines: string[], currentLineNumber: number): number => {
-    let numWhiles = 0;
-    let numEndWhiles = 0;
-    let whileIndex = 0;
-    lines.toReversed().forEach((line, index) => {
-        line = line.trim()
-        if (lines.length - index >= currentLineNumber) return
-        if (line.match(/^ENDWHILE/)) numEndWhiles++
-        else if (line.match(/^WHILE(.*)/) && ++numWhiles > numEndWhiles) {
-            whileIndex = lines.length - index
-        }
-    })
-    return whileIndex
-}
+// const getLastWhile = (lines: string[], currentLineNumber: number): number => {
+//     let numWhiles = 0;
+//     let numEndWhiles = 0;
+//     let whileIndex = 0;
+//     lines.toReversed().forEach((line, index) => {
+//         line = line.trim()
+//         if (lines.length - index >= currentLineNumber) return
+//         if (line.match(/^ENDWHILE/)) numEndWhiles++
+//         else if (line.match(/^WHILE(.*)/) && ++numWhiles > numEndWhiles) {
+//             whileIndex = lines.length - index
+//         }
+//     })
+//     return whileIndex
+// }
 
-const getLastRepeat = (lines: string[], currentLineNumber: number): number => {
-    let numRepeats = 0;
-    let numUntils = 0;
-    let repeatIndex = 0;
-    lines.toReversed().forEach((line, index) => {
-        line = line.trim()
-        if (lines.length - index >= currentLineNumber) return
-        if (line.match(/^UNTIL(.*)/)) numUntils++
-        else if (line.match(/^REPEAT/) && ++numRepeats > numUntils) {
-            repeatIndex = lines.length - index
-        }
-    })
-    return repeatIndex
-}
+// const getLastRepeat = (lines: string[], currentLineNumber: number): number => {
+//     let numRepeats = 0;
+//     let numUntils = 0;
+//     let repeatIndex = 0;
+//     lines.toReversed().forEach((line, index) => {
+//         line = line.trim()
+//         if (lines.length - index >= currentLineNumber) return
+//         if (line.match(/^UNTIL(.*)/)) numUntils++
+//         else if (line.match(/^REPEAT/) && ++numRepeats > numUntils) {
+//             repeatIndex = lines.length - index
+//         }
+//     })
+//     return repeatIndex
+// }
 
-const getLastFor = (lines: string[], currentLineNumber: number): number => {
-    let numFors = 0;
-    let numEndFors = 0;
-    let forIndex = 0;
-    lines.toReversed().forEach((line, index) => {
-        line = line.trim()
-        if (lines.length - index >= currentLineNumber) return
-        if (line.match(/^ENDFOR/)) numEndFors++
-        else if (line.match(/^FOR(.*)=(.*)to(.*)STEP(.*)/) && ++numFors > numEndFors) {
-            forIndex = lines.length - index
-        }
-    })
-    return forIndex
-}
+// const getLastFor = (lines: string[], currentLineNumber: number): number => {
+//     let numFors = 0;
+//     let numEndFors = 0;
+//     let forIndex = 0;
+//     lines.toReversed().forEach((line, index) => {
+//         line = line.trim()
+//         if (lines.length - index >= currentLineNumber) return
+//         if (line.match(/^ENDFOR/)) numEndFors++
+//         else if (line.match(/^FOR(.*)=(.*)to(.*)STEP(.*)/) && ++numFors > numEndFors) {
+//             forIndex = lines.length - index
+//         }
+//     })
+//     return forIndex
+// }
 
 
 
