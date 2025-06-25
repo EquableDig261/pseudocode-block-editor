@@ -328,7 +328,7 @@ export default function BlockEditor() {
                 fontWeight: content.type === BOX_TYPES.SUB_BLOCK ? 400 : 500,
               }}
             >
-              {isEmptySubBlock ? "..." : renderContents(content, box.isOriginal)}
+              {isEmptySubBlock ? "" : renderContents(content, box.isOriginal)}
             </div>
           )
         }

@@ -120,3 +120,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Add these styles to your globals.css file */
+
+/* Ensure Monaco hover appears above everything */
+
+
+/* If the above doesn't work, try targeting the specific hover elements more broadly */
+.monaco-editor .monaco-hover,
+.monaco-editor .overlayWidgets {
+  z-index: 99999 !important;
+  overflow: visible !important;
+  position: fixed;
+}
+

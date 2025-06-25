@@ -218,7 +218,7 @@ export function createMouseHandlers({
                                 return {
                                     ...box, 
                                     // Ensure x is just the base x; indentation will be handled by previousIndentation and rendering.
-                                    x: box.x + box.indentation * BOX_HEIGHT, 
+                                    x: box.x + draggingBoxCandidate.indentation * BOX_HEIGHT, 
                                     indentation: previousIndentation
                                 }
                             }),
@@ -408,6 +408,7 @@ export function createMouseHandlers({
      * Handles mouse up to complete drag operations
      */
     const handleMouseUp = (e: MouseEvent) => {
+        console.log(boxes)
                 if (!containerRef.current || !draggingBox) return; // Ensure draggingBox exists
                 const containerRect = containerRef.current.getBoundingClientRect();
                 const mouseXRelativeContainer = e.clientX - containerRect.left;
@@ -476,7 +477,7 @@ export function createMouseHandlers({
                                     y: dropTargetBox.y + BOX_HEIGHT * (index + 1),
                                     verticalOffset: 0,
                                     // Indentation is now the drop target's indentation + its own relative indentation within the dragged stack
-                                    indentation: dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
+                                    indentation: dropTargetBox.indentation + box.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
                                 })),
                                 ...afterTarget.map((box) => ({
                                     ...box,
