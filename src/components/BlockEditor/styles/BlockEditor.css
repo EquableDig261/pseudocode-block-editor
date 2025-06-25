@@ -13,6 +13,7 @@ input[type="number"] {
     user-select: none;
     -webkit-user-select: none; /* For Safari */
     -ms-user-select: none;     /* For IE/Edge */
+    color: white;
   }
 
 /* Scrollbar container */

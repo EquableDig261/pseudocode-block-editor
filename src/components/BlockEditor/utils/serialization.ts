@@ -1,5 +1,5 @@
 import {BoxStack, Box} from "./../types"
-import {BOX_TYPES} from "./../constants"
+import {BOX_TYPES} from "./../../constants"
 
 export const serialize = (boxes : BoxStack[]) => {
     boxes = boxes.filter((boxStack) => !boxStack.boxes.some(box => box.isOriginal));
