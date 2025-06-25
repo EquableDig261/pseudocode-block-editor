@@ -36,9 +36,6 @@ export const POSSIBLE_LINE_PATTERNS : LinePattern[] = [
     
     {pattern: /^REPEAT/, order: ["REPEAT"], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
     {pattern: /^UNTIL(.*)/, order: ["UNTIL ", {acceptedReturnTypes: [RETURN_TYPES.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
-
-    {pattern: /^CASEWHERE(.*)/, order: ["CASEWHERE ", {acceptedReturnTypes: [RETURN_TYPES.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
-    {pattern: /^ENDCASE/, order: ["ENDCASE"], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
     
     {pattern: /^BEGIN/, order: ["BEGIN"], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
     {pattern: /^END/, order: ["END"], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
@@ -59,7 +56,6 @@ export const LIBRARY_BOXES: { boxes: LibraryBox[]; color: string; }[] = [
     {boxes: [{type: BOX_TYPES.MID_WRAPPER, contents: ["ELSE "], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["WHILE ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["ENDWHILE"], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["REPEAT"], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["UNTIL ", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}], returnType: null}], color: COLORS.YELLOW},
-    {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["CASEWHERE ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.VARIABLE]}], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["ENDCASE"], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["FOR ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.VARIABLE]}, " = ", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.NUMBER]}, " to ", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.NUMBER]}, " STEP ", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.NUMBER]}], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["NEXT"], returnType: null}], color: COLORS.YELLOW},
     
     // Funcs - cyan
