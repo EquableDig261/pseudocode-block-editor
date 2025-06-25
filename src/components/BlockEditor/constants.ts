@@ -10,6 +10,9 @@ export const BOX_RADIUS = 12;
 export const SUB_BLOCK_HEIGHT = 28;
 export const EMPTY_BLOCK_WIDTH = 40;
 
+
+export const LIBRARY_WIDTH = 400;
+
 // Box shadow for depth
 export const BOX_SHADOW = "0 2px 4px rgba(0,0,0,0.1)";
 export const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
@@ -42,7 +45,7 @@ export const POSSIBLE_LINE_PATTERNS : LinePattern[] = [
     {pattern: /^ENDWHILE/, order: ["ENDWHILE"], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
 
     {pattern: /^FOR(.*)=(.*)to(.*)STEP(.*)/, order: ["FOR ", {acceptedReturnTypes: [RETURN_TYPES.VARIABLE]}, " = ", {acceptedReturnTypes: [RETURN_TYPES.NUMBER]}, " to ", {acceptedReturnTypes: [RETURN_TYPES.NUMBER]}, " STEP ", {acceptedReturnTypes: [RETURN_TYPES.NUMBER]}], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
-    {pattern: /^ENDFOR/, order: ["ENDFOR"], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
+    {pattern: /^NEXT/, order: ["NEXT"], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
     
     {pattern: /^REPEAT/, order: ["REPEAT"], color: COLORS.YELLOW, boxType: BOX_TYPES.WRAPPER},
     {pattern: /^UNTIL(.*)/, order: ["UNTIL ", {acceptedReturnTypes: [RETURN_TYPES.BOOLEAN]}], color: COLORS.YELLOW, boxType: BOX_TYPES.END_WRAPPER},
@@ -64,8 +67,8 @@ export const POSSIBLE_LINE_PATTERNS : LinePattern[] = [
 export const LIBRARY_BOXES: { boxes: LibraryBox[]; color: string; }[] = [        
     // Loops / Wrappers light yellow ig:
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["BEGIN"], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["END"], returnType: null}], color: COLORS.YELLOW},
-    {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["IF ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}, "THEN"], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["ENDIF"], returnType: null},], color: COLORS.YELLOW},
-    {boxes: [{type: BOX_TYPES.MID_WRAPPER, contents: ["ELSE IF ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}, "THEN"], returnType: null}], color: COLORS.YELLOW},
+    {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["IF ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}, " THEN"], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["ENDIF"], returnType: null},], color: COLORS.YELLOW},
+    {boxes: [{type: BOX_TYPES.MID_WRAPPER, contents: ["ELSE IF ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}, " THEN"], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.MID_WRAPPER, contents: ["ELSE "], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["WHILE ",  {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["ENDWHILE"], returnType: null}], color: COLORS.YELLOW},
     {boxes: [{type: BOX_TYPES.WRAPPER, contents: ["REPEAT"], returnType: null}, {type: BOX_TYPES.END_WRAPPER, contents: ["UNTIL ", {subBoxType: SUB_BOX_TYPES.EMPTY, returnTypes: [RETURN_TYPES.BOOLEAN]}], returnType: null}], color: COLORS.YELLOW},

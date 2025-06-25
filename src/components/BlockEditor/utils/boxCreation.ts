@@ -40,7 +40,7 @@ export const createNewVariable = (variableName: string, boxes: BoxStack[], id: n
         return  {boxes: [{
             id: id,
             x: LIBRARY_X_SPACING,
-            y: LIBRARY_Y_SPACING * (numOriginalBoxes) + (heightOffset) * BOX_HEIGHT + (LIBRARY_Y_SPACING + 18),
+            y: LIBRARY_Y_SPACING * (numOriginalBoxes) + (heightOffset) * BOX_HEIGHT + (LIBRARY_Y_SPACING + 100),
             isOriginal: true,
             verticalOffset: 0,
             color: COLORS.PURPLE,

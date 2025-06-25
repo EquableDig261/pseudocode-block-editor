@@ -107,7 +107,7 @@ const forInterpretation = (groups: (string | number | boolean)[], data: interpre
     return data;
 }
 
-const endForInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
+const nextInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
     if (data.currentIndent > data.realIndent) { 
         data.currentIndent -= 1;
         data.currentLineNumber = data.indentationData[data.indentationData.length - 1].beginIndentLine
@@ -147,7 +147,7 @@ const endInterpretation = (groups: (string | number | boolean)[], data: interpre
 }
 
 const displayInterpretation = (groups: (string | number | boolean)[], data: interpretationData) => {
-    if (data.realIndent === data.currentIndent) data.setOutput(prev => [...prev, String(groups[0]), ""])
+    if (data.realIndent === data.currentIndent) data.setOutput(prev => [...prev, String(groups[0])])
     return data
 }
 
@@ -184,7 +184,7 @@ const POSSIBLE_LINE_PATTERNS : LinePattern[] = [ // if I fit pattern get my grou
     {pattern: /^ENDWHILE/, interpretation: endWhileInterpretation, replaceVariables: []},
 
     {pattern: /^FOR(.*)=(.*)to(.*)STEP(.*)/, interpretation: forInterpretation, replaceVariables: [false, true, true, true]},
-    {pattern: /^ENDFOR/, interpretation: endForInterpretation, replaceVariables: []},
+    {pattern: /^NEXT/, interpretation: nextInterpretation, replaceVariables: []},
     
     {pattern: /^REPEAT/, interpretation: repeatInterpretation, replaceVariables: []},
     {pattern: /^UNTIL(.*)/, interpretation: untilInterpretation, replaceVariables: [true]},
@@ -347,51 +347,3 @@ const getAdjacentString = (text : (string | boolean| number)[], expectedIndex : 
     if (typeof returnText === "string" && (returnText === "true" || returnText === "false")) return returnText === "true" ? true : false
     return text[expectedIndex];
 }
-
-// const getLastWhile = (lines: string[], currentLineNumber: number): number => {
-//     let numWhiles = 0;
-//     let numEndWhiles = 0;
-//     let whileIndex = 0;
-//     lines.toReversed().forEach((line, index) => {
-//         line = line.trim()
-//         if (lines.length - index >= currentLineNumber) return
-//         if (line.match(/^ENDWHILE/)) numEndWhiles++
-//         else if (line.match(/^WHILE(.*)/) && ++numWhiles > numEndWhiles) {
-//             whileIndex = lines.length - index
-//         }
-//     })
-//     return whileIndex
-// }
-
-// const getLastRepeat = (lines: string[], currentLineNumber: number): number => {
-//     let numRepeats = 0;
-//     let numUntils = 0;
-//     let repeatIndex = 0;
-//     lines.toReversed().forEach((line, index) => {
-//         line = line.trim()
-//         if (lines.length - index >= currentLineNumber) return
-//         if (line.match(/^UNTIL(.*)/)) numUntils++
-//         else if (line.match(/^REPEAT/) && ++numRepeats > numUntils) {
-//             repeatIndex = lines.length - index
-//         }
-//     })
-//     return repeatIndex
-// }
-
-// const getLastFor = (lines: string[], currentLineNumber: number): number => {
-//     let numFors = 0;
-//     let numEndFors = 0;
-//     let forIndex = 0;
-//     lines.toReversed().forEach((line, index) => {
-//         line = line.trim()
-//         if (lines.length - index >= currentLineNumber) return
-//         if (line.match(/^ENDFOR/)) numEndFors++
-//         else if (line.match(/^FOR(.*)=(.*)to(.*)STEP(.*)/) && ++numFors > numEndFors) {
-//             forIndex = lines.length - index
-//         }
-//     })
-//     return forIndex
-// }
-
-
-

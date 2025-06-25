@@ -13,7 +13,7 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react').then(mod => mo
 const languageId = 'mylang';
 
 const keywords = [
-  "IF", "ELSE", "THEN", "BEGIN", "END", "WHILE", "FOR", "STEP", "NEXT", "ENDWHILE", "ENDIF", "display", "get", "REPEAT", "UNTIL", "CASEWHERE", "ENDCASE", "AND", "OR", "NOT"
+  "IF", "ELSE", "THEN", "BEGIN", "END", "WHILE", "FOR", "STEP", "NEXT", "to", "ENDWHILE", "ENDIF", "display", "get", "REPEAT", "UNTIL", "AND", "OR", "NOT", "true", "false"
 ];
 
 export default function WrittenEditor() {
@@ -30,12 +30,14 @@ export default function WrittenEditor() {
       monaco.languages.setMonarchTokensProvider(languageId, {
         tokenizer: {
           root: [
-            [/\b(IF|ELSE|THEN|BEGIN|END|WHILE|FOR|STEP|NEXT|ENDWHILE|ENDIF|display|get|REPEAT|UNTIL|CASEWHERE|ENDCASE|AND|OR|NOT|length|of|is|OTHERWISE:)\b/, 'keyword'],
+            [/\b(IF|ELSE|THEN|BEGIN|END|WHILE|FOR|STEP|NEXT|to|ENDWHILE|ENDIF|display|get|REPEAT|UNTIL|AND|OR|NOT|length|of|is)\b/, 'keyword'],
+            [/\b(true|false)\b/, "boolean"],
             [/[a-z_$][\w$]*/, 'identifier'],
             [/\d+/, 'number'],
             [/=/, 'operator'],
             [/".*?"/, 'string'],
             [/\s+/, 'white'],
+            [/\/\/.*/, "comment"]
           ],
         },
       });
@@ -100,15 +102,6 @@ export default function WrittenEditor() {
               range: range,
             },
             {
-              label: 'CASEWHERE...ENDCASE',
-              filterText: 'CASEWHERE',
-              kind: monaco.languages.CompletionItemKind.Snippet,
-              insertText: 'CASEWHERE $0\nENDCASE',
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              sortText: "000",
-              range: range,
-            },
-            {
               label: 'REPEAT...UNTIL',
               filterText: 'REPEAT',
               kind: monaco.languages.CompletionItemKind.Snippet,
@@ -143,7 +136,7 @@ export default function WrittenEditor() {
         ],
         onEnterRules: [
           {
-            beforeText: /(IF|WHILE|REPEAT|BEGIN|FOR|CASEWHERE)\b/i,
+            beforeText: /(IF|WHILE|REPEAT|BEGIN|FOR)\b/i,
             action: { indentAction: monaco.languages.IndentAction.Indent }
           },
         ],
@@ -154,11 +147,14 @@ export default function WrittenEditor() {
         base: 'vs-dark',
         inherit: true,
         rules: [
-          { token: 'keyword', foreground: 'a47dab', fontStyle: 'bold' },
-          { token: 'number', foreground: '4ec9b0' },
-          { token: 'string', foreground: 'ce9178' },
+          { token: 'keyword', foreground: '00bbec', fontStyle: 'bold' },
+          { token: 'identifier', foreground: '7c9fd4'},
+          { token: 'number', foreground: '83dd7f' },
+          { token: 'string', foreground: 'b2db9a' },
+          { token: 'boolean', foreground: '87eb8b' },
+          { token: 'comment', foreground: '979695'}
         ],
-        colors: {
+        colors: { 
           // Customize theme further if needed
         },
       });

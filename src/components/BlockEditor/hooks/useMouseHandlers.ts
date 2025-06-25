@@ -21,7 +21,10 @@ export function createMouseHandlers({
     setDropTargetBox,
     setDraggingBox,
     dropTargetBox,
-    draggingBox
+    draggingBox,
+    canvasOffsetX, // Receive canvas offsets
+    canvasOffsetY, // Receive canvas offsets
+    LIBRARY_WIDTH, // Receive LIBRARY_WIDTH
 }: {
     containerRef: React.RefObject<HTMLDivElement | null>,
     boxRefs: React.RefObject<{[key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null;}>,
@@ -33,7 +36,10 @@ export function createMouseHandlers({
     setDropTargetBox: React.Dispatch<React.SetStateAction<Box | null>>,
     setDraggingBox: React.Dispatch<React.SetStateAction<Box | null>>,
     dropTargetBox: Box | null,
-    draggingBox: Box | null
+    draggingBox: Box | null,
+    canvasOffsetX: number, // Type definition for canvasOffsetX
+    canvasOffsetY: number, // Type definition for canvasOffsetY
+    LIBRARY_WIDTH: number, // Type definition for LIBRARY_WIDTH
 }) {
     /**
      * Handles mouse down events on boxes
@@ -42,44 +48,90 @@ export function createMouseHandlers({
             const ref = boxRefs.current[id];
             if (!ref || !containerRef.current) return;
     
-            const boxRect = ref.getBoundingClientRect();
-            const offsetX = e.clientX - boxRect.left;
-            const offsetY = e.clientY - boxRect.top;
-    
+            const containerRect = containerRef.current.getBoundingClientRect();
+
+            let offsetX;
+            let offsetY;
+            
+            // Temporary variable to find the box
+            let clickedBox: Box | null = null;
+            boxes.flatMap((boxStack) => boxStack.boxes).forEach((box) => {
+                if (box.id === id) {
+                    clickedBox = box;
+                } else {
+                    getContents(box).forEach((content: (string | Box)) => {
+                        if (typeof content !== "string" && content.id === id) {
+                            clickedBox = content;
+                        }
+                    });
+                }
+            });
+
+            if (!clickedBox) return; // Should not happen if id is valid
+
+            if (clickedBox.isOriginal) {
+                // For original blocks (from library), grabOffset is relative to the rendered top-left
+                // of the *cloned* block's base position on the canvas.
+                // We calculate `offsetX` and `offsetY` as the distance from the mouse to the visual
+                // top-left of the rendered box.
+                const boxRect = ref.getBoundingClientRect();
+                offsetX = e.clientX - boxRect.left + LIBRARY_WIDTH;
+                offsetY = e.clientY - boxRect.top;
+            } else {
+                // For existing blocks on the canvas, `grabOffset` needs to represent the difference
+                // between the mouse's current viewport position and the block's internal (unpanned) coordinates.
+                // This ensures that when the block is dragged, its `box.x` and `box.y` values (which are
+                // internal coordinates) are correctly updated relative to the mouse and the canvas's state.
+                offsetX = (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX) - clickedBox.x - clickedBox.indentation * BOX_HEIGHT;
+                offsetY = (e.clientY - containerRect.top - canvasOffsetY) - clickedBox.y;
+            }
+            
             setGrabOffset({ x: offsetX, y: offsetY });
     
-            let draggingBox : Box | null = null;
+            let draggingBoxCandidate : Box | null = null;
             // find the box that is currently selected
             boxes.flatMap((boxStack) => boxStack.boxes).forEach((box) => {
                 if (box.id === id) {
-                    draggingBox = box;
+                    draggingBoxCandidate = box;
                     return;
                 }
                 else {
                     getContents(box).forEach((content : (string | Box)) => {
                         if (typeof content !== "string" && content.id === id) {
-                            draggingBox = content;
+                            draggingBoxCandidate = content;
                             return;
                         }
                     })
                 }
             })
-    
-            if (!draggingBox) {
+            if (!draggingBoxCandidate) {
                 setDraggingBox(null);
                 return;
             }
-    
+            // Use the candidate as the actual draggingBox
+            setDraggingBox(draggingBoxCandidate);
+
             const draggingBoxStack = boxes.find(boxStack => boxStack.boxes.some(box => box.id === id));
     
             if (draggingBoxStack) {        
-                if ((draggingBox as Box).isOriginal) {
+                if ((draggingBoxCandidate as Box).isOriginal) {
+                    // When dragging an original box from the library, create a clone
+                    // Calculate the initial position for the cloned box relative to the canvas area
+                    // This initialCloneX will be the base X (zero indentation) for the new stack.
+                    // The clone's x,y will be in the internal canvas coordinate system.
+                    const initialCloneX = e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX - offsetX;
+                    const initialCloneY = e.clientY - containerRect.top - canvasOffsetY - offsetY;
+
                     const clone: BoxStack = {
-                        boxes: draggingBoxStack.boxes.map((box2) => {
+                        boxes: draggingBoxStack.boxes.map((box2, idx) => {
                             return {
                                 ...box2, 
                                 isOriginal: false, 
                                 id: nextId.current++, 
+                                // Set initial x for the cloned box as the base X of the stack.
+                                // Indentation will be handled by the 'indentation' property and rendering.
+                                x: initialCloneX, 
+                                y: initialCloneY + (idx * BOX_HEIGHT), 
                                 contents: box2.contents.map((content) => 
                                     typeof content !== "string" && content.type === BOX_TYPES.EMPTY_SUB_BLOCK 
                                         ? getEmptySubBlock(nextId.current++, content.acceptedReturnTypes) :
@@ -91,10 +143,12 @@ export function createMouseHandlers({
                         }),
                         isDragging: true,
                     };
-                    setDraggingBox(clone.boxes.find(box2 => draggingBox && box2.type === draggingBox.type) || clone.boxes[0]);
+                    setDraggingBox(clone.boxes.find(box2 => draggingBoxCandidate && box2.type === draggingBoxCandidate.type) || clone.boxes[0]);
                     setBoxes((prev) => [...prev, clone]);
                 } else {
-                    setDraggingBox(draggingBox);
+                    // When dragging an existing box from the canvas
+                    // grabOffset already adjusted above for existing boxes
+                    
                     const boxStackIndex = boxes.findIndex((boxStack) =>
                         boxStack.boxes.some((box) => box.id === id)
                     );
@@ -111,18 +165,18 @@ export function createMouseHandlers({
                         let draggedBoxes = originalBoxStack.boxes.slice(boxIndex);
                     
                         
-                        if (!draggingBox) return prev;
-                        const dragIndentation = draggingBox.indentation + (draggingBox.type === BOX_TYPES.MID_WRAPPER ? 1 : 0)
+                        if (!draggingBoxCandidate) return prev;
+                        const dragIndentation = draggingBoxCandidate.indentation + (draggingBoxCandidate.type === BOX_TYPES.MID_WRAPPER ? 1 : 0)
     
-                        let endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
+                        let endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBoxCandidate && box.indentation < dragIndentation && index > boxIndex) - 1;
                         let startIndex = boxIndex;
                         
-                        if (draggingBox.type === BOX_TYPES.WRAPPER) {
-                            endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
+                        if (draggingBoxCandidate.type === BOX_TYPES.WRAPPER) {
+                            endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBoxCandidate && box.indentation < dragIndentation && index > boxIndex) - 1;
                         }
-                        else if (draggingBox.type === BOX_TYPES.END_WRAPPER) {
-                            startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBox && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
-                            endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBox && box.indentation < dragIndentation && index > boxIndex) - 1;
+                        else if (draggingBoxCandidate.type === BOX_TYPES.END_WRAPPER) {
+                            startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBoxCandidate && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
+                            endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBoxCandidate && box.indentation < dragIndentation && index > boxIndex) - 1;
                         }
     
                         if (endIndex === -2) {
@@ -146,7 +200,7 @@ export function createMouseHandlers({
                             };
                         }
                         
-                        // calculate indentation on each box
+                        // calculate indentation on each box relative to the new dragging stack
                         let currentIndentation = 0;
                         let previousIndentation = 0;
     
@@ -163,7 +217,8 @@ export function createMouseHandlers({
                                 }
                                 return {
                                     ...box, 
-                                    x: box.x + draggedBoxes[0].indentation * BOX_HEIGHT, 
+                                    // Ensure x is just the base x; indentation will be handled by previousIndentation and rendering.
+                                    x: box.x + box.indentation * BOX_HEIGHT, 
                                     indentation: previousIndentation
                                 }
                             }),
@@ -175,27 +230,25 @@ export function createMouseHandlers({
                 }
             }
             else {
-                setDraggingBox(draggingBox);
+                // This block handles dragging a sub-box that is not part of a stack in the main canvas
+                setDraggingBox(draggingBoxCandidate);
                 setBoxes((prev) => {
-                    if (!draggingBox) return prev;
+                    if (!draggingBoxCandidate) return prev;
                     
                     const newBoxes = prev.map((boxStack) => ({
                         ...boxStack,
                         boxes: boxStack.boxes.map((box) =>
-                            draggingBox ? removeSubBox(draggingBox.id, box, nextId.current++, draggingBox.returnType) : box
+                            draggingBoxCandidate ? removeSubBox(draggingBoxCandidate.id, box, nextId.current++, draggingBoxCandidate.returnType) : box
                         ),
                     }));
     
-                    let boxX = e.clientX - grabOffset.x;
-                    let boxY = e.clientX - grabOffset.x;
+                    // The initial position of the dragged box is based on the mouse down event
+                    // and the grab offset relative to the main canvas area.
+                    // This initialX will be the base X (zero indentation).
+                    const initialX = e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX - grabOffset.x;
+                    const initialY = e.clientY - containerRect.top - canvasOffsetY - grabOffset.y;
     
-                    if (containerRef.current) {
-                        const containerRect = containerRef.current.getBoundingClientRect();
-                    
-                        boxX = e.clientX - containerRect.left - grabOffset.x;
-                        boxY = e.clientY - containerRect.top - grabOffset.y;
-                    }
-                    newBoxes.push({boxes: [{...draggingBox, x: boxX, y: boxY}], isDragging: true})
+                    newBoxes.push({boxes: [{...draggingBoxCandidate, x: initialX, y: initialY}], isDragging: true})
                     return newBoxes;
                 });
             }
@@ -206,15 +259,19 @@ export function createMouseHandlers({
      * Handles mouse move during drag operations
      */
     const handleMouseMove = (e: MouseEvent) => {
-                if (!containerRef.current) return;
+                if (!containerRef.current || !draggingBox) return; // Ensure draggingBox exists
                 const containerRect = containerRef.current.getBoundingClientRect();
     
-                const boxX = e.clientX - containerRect.left - grabOffset.x;
-                const boxY = e.clientY - containerRect.top - grabOffset.y;
-                const mouseX = e.clientX - containerRect.left;
-                const mouseY = e.clientY - containerRect.top;
+                // Calculate the new position of the top-left corner of the dragging element
+                // relative to the main canvas area, by subtracting the grabOffset and canvas/library offsets.
+                const boxX = e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX - grabOffset.x;
+                const boxY = e.clientY - containerRect.top - canvasOffsetY - grabOffset.y;
+                
+                // These are raw mouse coordinates relative to the viewport, which are used for hit-testing
+                // with rendered elements whose positions are also viewport-relative.
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
     
-                if (!draggingBox) return;
                 const draggedBoxStack = boxes.find((boxStack) => 
                     boxStack.boxes.some((box) => box.id === draggingBox.id)
                 );
@@ -223,40 +280,58 @@ export function createMouseHandlers({
                 );
                 if (!draggedBoxStack || draggedBoxIndex === -1 || draggedBoxIndex === undefined) return;
     
-                // Set the position of the dragging box stack to the position of the mouse
+                // Set the position of the dragging box stack to follow the mouse.
+                // All boxes in the dragging stack share the same base X, and their individual
+                // indentation property will provide the visual offset.
                 setBoxes((prev) =>
                     prev.map((boxStack) => {
                         if (!boxStack.isDragging) return boxStack;
                         return {
                             boxes: boxStack.boxes.map((box, index) => ({
                                 ...box,
-                                x: boxX + boxStack.boxes[0].indentation * BOX_HEIGHT,
-                                y: boxY + (index - draggedBoxIndex) * BOX_HEIGHT,
+                                x: boxX, // Set x to the base X of the stack
+                                y: boxY + (index - draggedBoxIndex) * BOX_HEIGHT, // Vertical position relative to the grabbed box
                             })),
                             isDragging: boxStack.isDragging,
                         };                    
                     })
                 );
     
-                const draggingBoxStack = boxes.find((boxStack) => boxStack.isDragging);
-                if (!draggingBoxStack) return;
-    
+                const currentDraggingBoxStack = boxes.find((boxStack) => boxStack.isDragging);
+                if (!currentDraggingBoxStack) return; // Use currentDraggingBoxStack, not draggingBoxStack from closure
+
                 let closestTarget: Box | null = null;
     
                 // Find the closest target that the mouse is within
                 if (draggingBox.type !== BOX_TYPES.SUB_BLOCK) {
                     boxes.forEach((boxStack) => {
                         boxStack.boxes.forEach((box) => {
-                            const beingDragged = draggingBoxStack.boxes.some(
+                            const beingDragged = currentDraggingBoxStack.boxes.some( // Use currentDraggingBoxStack
                                 (draggedBox) => draggedBox.id === box.id
                             );
-                            if (beingDragged || box.isOriginal) return;
+                            if (beingDragged || box.isOriginal) return; // Original boxes cannot be drop targets for main blocks
                             if (box.type === BOX_TYPES.SUB_BLOCK) return;
     
-                            const mouseWithinTarget = Math.abs(box.x + BOX_WIDTH/2 + box.indentation * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT : 0) - mouseX) < BOX_WIDTH/2 &&
-                                                    Math.abs(box.y + (BOX_HEIGHT * 1.5) - mouseY) < BOX_HEIGHT / 2
-                            const distanceToCentreOfTarget = Math.hypot(box.x + BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER  || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, box.y + (BOX_HEIGHT * 1.5) - mouseY)
-                            const closestDistanceToCentre = closestTarget ? Math.hypot(closestTarget.x +  BOX_WIDTH/2 + (box.indentation) * BOX_HEIGHT + (box.type === BOX_TYPES.WRAPPER || box.type === BOX_TYPES.MID_WRAPPER ? BOX_HEIGHT :0) - mouseX, closestTarget.y + (BOX_HEIGHT * 1.5) - mouseY) : Infinity;
+                            // Calculate the effective visual X for the box on canvas for hit detection
+                            // This visualX should be viewport-relative
+                            const boxVisualX = box.x + box.indentation * BOX_HEIGHT + 2*LIBRARY_WIDTH + canvasOffsetX;
+                            const boxVisualY = box.y + BOX_HEIGHT * box.verticalOffset + canvasOffsetY + 80;
+
+                            // Check if mouse is within the horizontal and vertical bounds of the drop target area (below the block)
+                            const mouseWithinTarget = 
+                                mouseX >= boxVisualX && mouseX <= boxVisualX + BOX_WIDTH &&
+                                mouseY >= boxVisualY + BOX_HEIGHT && mouseY <= boxVisualY + BOX_HEIGHT * 2; // Target area is below the block
+                            
+                            // Calculate distance to the center of the drop target area
+                            const targetCenterX = boxVisualX + BOX_WIDTH / 2;
+                            const targetCenterY = boxVisualY + BOX_HEIGHT * 1.5;
+                            const distanceToCentreOfTarget = Math.hypot(targetCenterX - mouseX, targetCenterY - mouseY);
+                            
+                            const closestDistanceToCentre = closestTarget ? 
+                                Math.hypot(
+                                    (closestTarget.x + closestTarget.indentation * BOX_HEIGHT + LIBRARY_WIDTH + canvasOffsetX + BOX_WIDTH / 2) - mouseX, 
+                                    (closestTarget.y + BOX_HEIGHT * closestTarget.verticalOffset + canvasOffsetY + BOX_HEIGHT * 1.5) - mouseY
+                                ) : Infinity;
     
                             if (mouseWithinTarget && distanceToCentreOfTarget < closestDistanceToCentre) {
                                 closestTarget = box;
@@ -264,7 +339,7 @@ export function createMouseHandlers({
                         });
                     });
                     if (closestTarget) {
-                        const draggingStackLength = draggingBoxStack.boxes.length;
+                        const draggingStackLength = currentDraggingBoxStack.boxes.length; // Use currentDraggingBoxStack
                         setBoxes((prevBoxes) =>
                             prevBoxes.map((boxStack) => {
                                 const targetIndex = boxStack.boxes.findIndex((box) => closestTarget && box.id === closestTarget.id);
@@ -300,18 +375,15 @@ export function createMouseHandlers({
                                     boxRefs.current[content.id]
                                 ) {
                                     const ref = boxRefs.current[content.id];
-                                    const rect = ref?.getBoundingClientRect();
-                                    const containerRect = containerRef.current?.getBoundingClientRect();
-                                    if (!rect || !containerRect) return;
+                                    const rect = ref?.getBoundingClientRect(); // rect is viewport-relative
+                                    if (!rect) return;
                                     
-                                    const relativeX = mouseX + containerRect.left;
-                                    const relativeY = mouseY + containerRect.top;
-                                    
+                                    // Use viewport coordinates for comparison with rect.
                                     if (
-                                        relativeX >= rect.left &&
-                                        relativeX <= rect.right &&
-                                        relativeY >= rect.top &&
-                                        relativeY <= rect.bottom
+                                        mouseX >= rect.left &&
+                                        mouseX <= rect.right &&
+                                        mouseY >= rect.top &&
+                                        mouseY <= rect.bottom
                                     ) {
                                         if(draggingBox.returnType && !content.acceptedReturnTypes.includes(draggingBox.returnType) && draggingBox.returnType !== RETURN_TYPES.VARIABLE) return;
                                         closestTarget = content;
@@ -336,17 +408,18 @@ export function createMouseHandlers({
      * Handles mouse up to complete drag operations
      */
     const handleMouseUp = (e: MouseEvent) => {
-                if (!containerRef.current) return;
+                if (!containerRef.current || !draggingBox) return; // Ensure draggingBox exists
                 const containerRect = containerRef.current.getBoundingClientRect();
-                const mouseX = e.clientX - containerRect.left;
+                const mouseXRelativeContainer = e.clientX - containerRect.left;
                 
-                if (draggingBox && mouseX < 400) {
+                // If dropping within the library area, remove the dragging box
+                if (mouseXRelativeContainer < LIBRARY_WIDTH) { // Removed 'draggingBox &&' as it's checked at function start
                     setBoxes((prev) => prev.filter(boxStack => !boxStack.isDragging))
                     setDropTargetBox(null);
                     setDraggingBox(null);
                     return;
                 }
-                if (dropTargetBox && draggingBox) {
+                if (dropTargetBox) { // Removed 'draggingBox &&' as it's checked at function start
                     setBoxes((prevBoxes) => {
                         if (dropTargetBox.type === BOX_TYPES.EMPTY_SUB_BLOCK) {
                             // Only allow dropping subBlocks into emptySubBlocks
@@ -397,10 +470,13 @@ export function createMouseHandlers({
                                 ...beforeTarget,
                                 ...draggingBoxStack.boxes.map((box, index) => ({
                                     ...box,
+                                    // When dropping, the x should align with the drop target's base X.
+                                    // The indentation will be re-applied based on its new position in the stack.
                                     x: dropTargetBox.x,
                                     y: dropTargetBox.y + BOX_HEIGHT * (index + 1),
                                     verticalOffset: 0,
-                                    indentation: box.indentation + dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
+                                    // Indentation is now the drop target's indentation + its own relative indentation within the dragged stack
+                                    indentation: dropTargetBox.indentation + ((dropTargetBox.type === BOX_TYPES.WRAPPER || dropTargetBox.type === BOX_TYPES.MID_WRAPPER) ? 1 : 0),
                                 })),
                                 ...afterTarget.map((box) => ({
                                     ...box,

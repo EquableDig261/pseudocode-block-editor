@@ -17,7 +17,7 @@ export const deserialize = (nextId: React.RefObject<number>) : BoxStack[] => {
             const linePattern = POSSIBLE_LINE_PATTERNS.find(linePattern => value.match(linePattern.pattern))
             if (linePattern) return matchLine(value, linePattern, index++, nextId);
             if (value === "") return null;
-            return {id: nextId.current++, x: 450, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPES.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPES.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
+            return {id: nextId.current++, x: 50 - 400, y: index++ * BOX_HEIGHT + 50, isOriginal: false, verticalOffset: 0, color: COLORS.GREY, indentation: boxExtrusionIndentation, type: BOX_TYPES.BLOCK, contents: ["//", {id: nextId.current++, x: 0, y: 0, isOriginal: false, verticalOffset: 0, color: COLORS.EMPTY, indentation: 0, type: BOX_TYPES.COMMENT_INPUT, contents: [value.replace(/^\/\/\s*/g, '')], returnType: null, acceptedReturnTypes: []}], returnType: null, acceptedReturnTypes: []}
         })
 
     const emptyBoxStacks: BoxStack[] = [{boxes: [], isDragging: false}];
@@ -64,7 +64,7 @@ const matchLine = (text: string, linePattern : LinePattern, index: number, nextI
             break;
         default: indentation = boxExtrusionIndentation;
     }
-    return {id: nextId.current++, x: 450, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: linePattern.color, indentation: indentation, type: linePattern.boxType, contents: contents, returnType: null, acceptedReturnTypes: []}
+    return {id: nextId.current++, x: 50 - 400, y: index*BOX_HEIGHT + 50, isOriginal:false, verticalOffset:0, color: linePattern.color, indentation: indentation, type: linePattern.boxType, contents: contents, returnType: null, acceptedReturnTypes: []}
 }
 
 
