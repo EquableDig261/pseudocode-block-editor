@@ -57,11 +57,11 @@ export function createMouseHandlers({
             let clickedBox: Box | null = null;
             boxes.flatMap((boxStack) => boxStack.boxes).forEach((box) => {
                 if (box.id === id) {
-                    clickedBox = box;
+                    clickedBox = box as Box;
                 } else {
                     getContents(box).forEach((content: (string | Box)) => {
                         if (typeof content !== "string" && content.id === id) {
-                            clickedBox = content;
+                            clickedBox = content as Box;
                         }
                     });
                 }
@@ -69,18 +69,18 @@ export function createMouseHandlers({
 
             if (!clickedBox) return; // Should not happen if id is valid
 
-            if (clickedBox.isOriginal) {
+            if ((clickedBox as Box).isOriginal) {
                 const boxRect = ref.getBoundingClientRect();
                 offsetX = e.clientX - boxRect.left + LIBRARY_WIDTH;
                 offsetY = e.clientY - boxRect.top;
             } else {
-                if (clickedBox.type === BOX_TYPES.SUB_BLOCK) {
+                if ((clickedBox as Box).type === BOX_TYPES.SUB_BLOCK) {
                     const boxRect = ref.getBoundingClientRect();
                     offsetX = e.clientX - boxRect.left + LIBRARY_WIDTH;
                     offsetY = e.clientY - boxRect.top;
                 } else {
-                    offsetX = (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX) - clickedBox.x - clickedBox.indentation * BOX_HEIGHT;
-                    offsetY = (e.clientY - containerRect.top - canvasOffsetY) - clickedBox.y;
+                    offsetX = (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX) - (clickedBox as Box).x - (clickedBox as Box).indentation * BOX_HEIGHT;
+                    offsetY = (e.clientY - containerRect.top - canvasOffsetY) - (clickedBox as Box).y;
                 }
             }
             
@@ -176,7 +176,7 @@ export function createMouseHandlers({
                             startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBoxCandidate && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
                             endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBoxCandidate && box.indentation < dragIndentation && index > boxIndex) - 1;
                             if (startIndex === originalBoxStack.boxes.length) {
-                                startIndex = originalBoxStack.boxes.findIndex(box => box.id === draggingBoxCandidate.id)
+                                startIndex = originalBoxStack.boxes.findIndex(box => box.id === (draggingBoxCandidate as Box).id)
                                 endIndex = startIndex
                             }
                         }
@@ -224,7 +224,7 @@ export function createMouseHandlers({
                                     // Ensure x is just the base x; indentation will be handled by previousIndentation and rendering.
                                     x: box.type === BOX_TYPES.SUB_BLOCK ? 
                                         (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX - offsetX) : 
-                                        (box.x + draggingBoxCandidate.indentation * BOX_HEIGHT), 
+                                        (box.x + (draggingBoxCandidate as Box).indentation * BOX_HEIGHT), 
                                     indentation: previousIndentation
                                 }
                             }),
