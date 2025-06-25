@@ -1,7 +1,8 @@
 import { EXTRUDE_CONDITIONS, SPLITTING_PATTERN, POSSIBLE_LINE_PATTERNS } from "./constants"
 import { InterpretationData } from "./types"
 
-export const interpret = async (setLines: React.Dispatch<React.SetStateAction<string[]>>, getInput: (prompt: string) => Promise<string>) => {
+// Added shouldStop as a function to check for the stop signal
+export const interpret = async (setLines: React.Dispatch<React.SetStateAction<string[]>>, getInput: (prompt: string) => Promise<string>, shouldStop: () => boolean) => {
     let editorContent = localStorage.getItem("editorContent")
     if (!editorContent) editorContent = ""
     const lines:string[] = editorContent.split("\n");
@@ -15,10 +16,24 @@ export const interpret = async (setLines: React.Dispatch<React.SetStateAction<st
         setOutput: setLines,
         getInput: getInput,
     }
-    while (data.currentLineNumber <= lines.length){
-        const preLineNumber = data.currentLineNumber
-        data = await interpretLine(lines[data.currentLineNumber - 1], data)
-        if (data.currentLineNumber === preLineNumber) data.currentLineNumber++;
+
+    try {
+        while (data.currentLineNumber <= lines.length){
+            // Yield control to the event loop to prevent freezing
+            await new Promise(resolve => setTimeout(resolve, 0));
+
+            // Check if stop has been requested
+            if (shouldStop()) {
+                throw new Error("Execution stopped by user.");
+            }
+
+            const preLineNumber = data.currentLineNumber
+            data = await interpretLine(lines[data.currentLineNumber - 1], data)
+            if (data.currentLineNumber === preLineNumber) data.currentLineNumber++;
+        }
+    } catch (error) {
+        // Re-throw the error so it can be caught by the calling component (Terminal.tsx)
+        throw error;
     }
 }
 

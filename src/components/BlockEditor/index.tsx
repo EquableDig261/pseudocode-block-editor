@@ -19,6 +19,7 @@ import { deserialize } from "./utils/deserialization"
 import { createMouseHandlers } from "./hooks/useMouseHandlers"
 import { updateInputBox, value } from "./utils/boxOperations"
 import "./styles/BlockEditor.css"
+import { Blocks } from "lucide-react"
 
 export default function BlockEditor() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -420,7 +421,7 @@ export default function BlockEditor() {
           backgroundColor: "#1e293b", // slate-800
           borderRight: "1px solid #334155", // slate-700
           direction: "rtl",
-          zIndex: 10000,
+          zIndex: 99000,
         }}
       >
         {/* Library Header */}
@@ -615,46 +616,52 @@ export default function BlockEditor() {
 
         {/* Canvas Helper Text */}
         {boxes.filter((boxStack) => !boxStack.boxes.some((box) => box.isOriginal)).length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: `calc(50% + ${canvasOffsetY}px)`, // Apply canvas offset to helper text
-              left: `calc(50% + ${canvasOffsetX}px)`, // Apply canvas offset to helper text
-              transform: "translate(-50%, -50%)",
-              textAlign: "center",
-              color: "#64748b", // slate-500
-              pointerEvents: "none", // Prevent helper text from interfering with panning
-            }}
-          >
             <div
-              style={{
-                fontSize: "48px",
-                marginBottom: "16px",
-                opacity: 0.5,
-              }}
+                style={{
+                    position: "absolute",
+                    top: `calc(50% + ${canvasOffsetY}px)`, // Apply canvas offset to helper text
+                    left: `calc(50% + ${canvasOffsetX}px)`, // Apply canvas offset to helper text
+                    transform: "translate(-50%, -50%)",
+                    textAlign: "center",
+                    color: "#64748b", // slate-500
+                    pointerEvents: "none", // Prevent helper text from interfering with panning
+                }}
             >
-              🧩
+                <div
+                    style={{
+                        // Changed to flexbox for perfect centering of the icon
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        fontSize: "96px", // Corresponds to w-24 h-24 on the Blocks icon itself
+                        marginBottom: "16px",
+                        opacity: 0.5,
+                    }}
+                >
+                    {/* Removed mr-2 and increased size classes */}
+                    <Blocks className="w-24 h-24" />
+                </div>
+                <h3
+                    style={{
+                        fontSize: "18px",
+                        fontWeight: "600",
+                        margin: "0 0 8px 0",
+                    }}
+                >
+                    Start Building
+                </h3>
+                <p
+                    style={{
+                        fontSize: "14px",
+                        margin: "0",
+                        opacity: 0.8,
+                    }}
+                >
+                    Drag blocks from the library to create your pseudocode
+                </p>
             </div>
-            <h3
-              style={{
-                fontSize: "18px",
-                fontWeight: "600",
-                margin: "0 0 8px 0",
-              }}
-            >
-              Start Building
-            </h3>
-            <p
-              style={{
-                fontSize: "14px",
-                margin: "0",
-                opacity: 0.8,
-              }}
-            >
-              Drag blocks from the library to create your pseudocode
-            </p>
-          </div>
         )}
+
       </div>
 
       {/* Drop target indicator */}

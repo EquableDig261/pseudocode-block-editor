@@ -5,6 +5,7 @@ import type React from "react"
 import { useImperativeHandle, useState, useRef, useEffect, forwardRef } from "react"
 import { interpret } from "./interpretation"
 import { TerminalIcon, Zap } from "lucide-react"
+import { BOX_TYPES, POSSIBLE_LINE_PATTERNS } from "./constants"
 
 export type TerminalHandle = {
   runCode: () => void
@@ -21,13 +22,29 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
   const [waitingForInput, setWaitingForInput] = useState(false)
   const [prompt, setPrompt] = useState<string | null>(null)
   const [isRunning, setIsRunning] = useState(false)
+  // New state to signal stopping the interpreter
+  const stopRequested = useRef<boolean>(false);
+  const stopResolver = useRef<(() => void) | null>(null); // To resolve the promise that indicates stopping
 
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputResolver = useRef<((value: string) => void) | null>(null)
 
+  // Function to signal the interpreter to stop
+  const signalStop = () => {
+    stopRequested.current = true;
+    if (stopResolver.current) {
+      stopResolver.current(); // Resolve the promise that the interpreter might be awaiting for stop signal
+      stopResolver.current = null;
+    }
+    // If waiting for input, resolve that as well with a special value or reject
+    if (waitingForInput && inputResolver.current) {
+      inputResolver.current("STOP_COMMAND_ISSUED"); // Special value to indicate stop
+      inputResolver.current = null;
+    }
+  };
+
   const handleCommand = (cmd: string): string[] => {
-    console.log(lines)
     const command = cmd.trim().toLowerCase()
     switch (command) {
       case "help":
@@ -36,21 +53,105 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
           "  • help     - Show this help message",
           "  • clear    - Clear the terminal",
           "  • run      - Execute your pseudocode",
-          "  • version  - Show version info",
+          "  • stop     - Stop the currently running pseudocode", // Added stop command
           "",
         ]
       case "clear":
         setLines([])
         return []
       case "run":
-        interpret(setLines, getInputLine)
+        if (isRunning) {
+          return ["⚠️ Pseudocode is already running. Type 'stop' to halt it.", ""];
+        }
+        let currentExpectedIndentation = 0
+
+        let codeLines: string|string[]|null = localStorage.getItem("editorContent")
+        if (codeLines !== null) {
+          codeLines = codeLines.split("\n")
+          const errors: string[] = []; // Array to collect errors
+
+          for (let lineIndex = 0; lineIndex < codeLines.length; lineIndex++) {
+            const line = codeLines[lineIndex];
+            const lineNumber = lineIndex + 1;
+            const trimmedLine = line.trim().toUpperCase();
+            
+            // Check for unclosed strings
+            const stringMatches = line.match(/"/g);
+            if (stringMatches && stringMatches.length % 2 !== 0) {
+              errors.push("⚠️ Syntax Error on Line " + lineNumber);
+              errors.push('Unclosed string literal');
+              break; // Stop checking further if a critical error is found
+            }
+            let cleaned = line.replace(/\u00A0|\u2003|\u2002|\u2009/g, ' ');
+            cleaned = line.replace(/\t/g, '    ');
+            const matchResult = cleaned.match(/^\s*/);
+            const whitespaceArray = matchResult && typeof matchResult[0] === "string" ? matchResult[0].split("") : "";
+            const indent = Math.ceil(whitespaceArray.length / 4)
+            const pattern = POSSIBLE_LINE_PATTERNS.find(pattern => line.trim().match(pattern.pattern))
+            if (pattern !== undefined) {
+              if (pattern.type === BOX_TYPES.END_WRAPPER || pattern.type === BOX_TYPES.MID_WRAPPER) {
+                currentExpectedIndentation -= 1
+              }
+              if (indent !== currentExpectedIndentation) {
+                errors.push("⚠️ Syntax Error on Line " + lineNumber);
+                errors.push('Incorrect Indentation: Expected ' + currentExpectedIndentation.toString());
+                break; // Stop checking further
+              }
+              if (pattern.type === BOX_TYPES.WRAPPER || pattern.type === BOX_TYPES.MID_WRAPPER) {
+                currentExpectedIndentation += 1
+              }
+            }
+            else if (line.trim() !== ""){
+              errors.push("⚠️ Syntax Error on Line " + lineNumber);
+              errors.push('Unknown Statement');
+              break; // Stop checking further
+            }
+            
+            // Check for IF without THEN
+            if (trimmedLine.startsWith('IF ') && !trimmedLine.includes(' THEN')) {
+              errors.push("⚠️ Syntax Error on Line " + lineNumber);
+              errors.push('IF statement missing THEN keyword');
+              break; // Stop checking further
+            }
+          }
+
+          if (errors.length > 0) {
+            return errors; // Return all collected errors
+          }
+        }
+
+        setIsRunning(true)
+        stopRequested.current = false; // Reset stop request
+        // Wrap interpretation in a promise so we can await its completion
+        const runPromise = new Promise<void>(async (resolve) => {
+          try {
+            await interpret(setLines, getInputLine, () => stopRequested.current); // Pass the check for stop
+            setLines((prev) => [...prev, "", "Execution finished."]);
+          } catch (error: any) {
+            if (error.message === "Execution stopped by user.") {
+              setLines((prev) => [...prev, "", "Execution stopped by user."]);
+            } else {
+              setLines((prev) => [...prev, "", `Error during execution: ${error.message}`]);
+            }
+          } finally {
+            setIsRunning(false);
+            resolve();
+          }
+        });
+
+        // This allows `handleInputSubmit` to know if interpretation is active.
+        // It's not about waiting for `runPromise` here, but setting up the execution context.
         return ["🔄 Executing pseudocode...", ""]
-      case "version":
-        return ["📦 Pseudocode Editor v1.0.0", ""]
+      case "stop":
+        if (isRunning) {
+          signalStop();
+        } else {
+          return ["No pseudocode is currently running.", ""];
+        }
       case "":
         return []
       default:
-        return [`❌ Unknown command: "${cmd}"`, 'Type "help" for available commands.', ""]
+        return [`Unknown command: "${cmd}"`, 'Type "help" for available commands.', ""]
     }
   }
 
@@ -59,6 +160,7 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
 
     const value = input
 
+    // If waiting for input from the interpreter
     if (waitingForInput && inputResolver.current) {
       setLines((prev) => [...prev, `${prompt ?? "❯"} ${value}`])
       inputResolver.current(value)
@@ -69,6 +171,7 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
       return
     }
 
+    // Handle regular terminal commands
     const newLine = `❯ ${input}`
     const output = handleCommand(input)
     setLines((prev) => [...prev, newLine, ...output])
@@ -104,10 +207,9 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
 
   useImperativeHandle(ref, () => ({
     runCode() {
-      setIsRunning(true)
-      setLines((prev) => [...prev, "🚀 Running pseudocode...", ""])
-      interpret(setLines, getInputLine)
-      setTimeout(() => setIsRunning(false), 1000)
+      // Trigger the "run" command programmatically
+      const output = handleCommand("run");
+      setLines((prev) => [...prev, ...output]);
     },
     getInputLine,
   }))
@@ -154,17 +256,7 @@ const Terminal = forwardRef<TerminalHandle>((_, ref) => {
           {lines.map((line, i) => (
             <div
               key={i}
-              className={`${
-                line.startsWith("❌")
-                  ? "text-red-400"
-                  : line.startsWith("🚀") || line.startsWith("🔄")
-                    ? "text-blue-400"
-                    : line.startsWith("📋") || line.startsWith("📦")
-                      ? "text-cyan-400"
-                      : line.startsWith("❯")
-                        ? "text-green-400"
-                        : "text-slate-300"
-              }`}
+              className={`${"text-slate-300"}`}
             >
               {line || "\u00A0"}
             </div>
