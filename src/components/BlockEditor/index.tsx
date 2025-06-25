@@ -11,9 +11,8 @@ import {
   EMPTY_BLOCK_WIDTH,
   BOX_SHADOW,
   DRAGGING_SHADOW,
-  BOX_TYPES,
 } from "./constants"
-import { COLORS, RETURN_TYPES } from "./../constants"
+import { COLORS, RETURN_TYPES, BOX_TYPES } from "./../constants"
 import { serialize } from "./utils/serialization"
 import { createNewVariable, getOriginalBoxes } from "./utils/boxCreation"
 import { deserialize } from "./utils/deserialization"
@@ -24,8 +23,6 @@ import "./styles/BlockEditor.css"
 export default function BlockEditor() {
   const containerRef = useRef<HTMLDivElement>(null)
   const boxRefs = useRef<{ [key: number]: HTMLDivElement | HTMLInputElement | HTMLSelectElement | null }>({})
-  const mouseMoveHandlerRef = useRef<((e: MouseEvent) => void) | null>(null)
-  const mouseUpHandlerRef = useRef<((e: MouseEvent) => void) | null>(null)
   const nextId = useRef(0)
 
   // Define the fixed width of the library panel for consistent positioning
@@ -48,11 +45,7 @@ export default function BlockEditor() {
   const lastPanPosition = useRef({ x: 0, y: 0 });
 
 
-  const variableAdditionYOffset =
-    LIBRARY_Y_SPACING * originalBoxes.length +
-    (originalBoxes.map((boxStack) => boxStack.boxes.length - 1).reduce((acc, val) => (acc && val ? acc + val : acc)) ||
-      0) *
-      BOX_HEIGHT
+  const variableAdditionYOffset = 2300
 
   const { handleMouseDown, handleMouseMove, handleMouseUp } = createMouseHandlers({
     containerRef,
@@ -482,7 +475,7 @@ export default function BlockEditor() {
           <div
             style={{
               position: "absolute",
-              top: variableAdditionYOffset + 16,
+              top: variableAdditionYOffset -30,
               left: 8,
               right: 8,
               padding: "16px",

@@ -1,6 +1,6 @@
 import { BoxStack, LinePattern, Box } from "./../types"
-import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT, BOX_TYPES} from "./../constants";
-import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS } from "./../../constants"
+import { POSSIBLE_LINE_PATTERNS, BOX_HEIGHT} from "./../constants";
+import { COLORS, SPLITTING_PATTERN, RETURN_TYPES, EXTRUDE_CONDITIONS, BOX_TYPES } from "./../../constants"
 import { getEmptySubBlock, getWholeInputSubBlock, getCSArray, getArrayIndicator, getVariableBox } from "./boxCreation"
 import { ExtrudeCondition, ExtrudeConditionType } from "@/components/types";
 

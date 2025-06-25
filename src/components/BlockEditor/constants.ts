@@ -1,5 +1,5 @@
 import { LinePattern, LibraryBox} from "./types"
-import { RETURN_TYPES, COLORS } from "./../constants";
+import { RETURN_TYPES, COLORS, BOX_TYPES } from "./../constants";
 
 // Constants for styling
 export const BOX_HEIGHT = 34;
@@ -16,19 +16,6 @@ export const LIBRARY_WIDTH = 400;
 // Box shadow for depth
 export const BOX_SHADOW = "0 2px 4px rgba(0,0,0,0.1)";
 export const DRAGGING_SHADOW = "0 4px 8px rgba(0,0,0,0.2)";
-
-export const BOX_TYPES = {
-    BLOCK: "BLOCK",
-    WRAPPER: "WRAPPER",
-    MID_WRAPPER: "MID_WRAPPER",
-    END_WRAPPER: "END_WRAPPER",
-    EMPTY_SUB_BLOCK: "EMPTY_SUB_BLOCK",
-    SUB_BLOCK: "SUB_BLOCK",
-    TEXT_INPUT: "TEXT_INPUT",
-    NUM_INPUT: "NUM_INPUT",
-    BOOL_INPUT: "BOOL_INPUT",
-    COMMENT_INPUT: "COMMENT_INPUT",
-}
 
 export const SUB_BOX_TYPES = {
     EMPTY: "EMPTY",

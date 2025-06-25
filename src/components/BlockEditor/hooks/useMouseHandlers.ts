@@ -1,7 +1,7 @@
 // mouseHandlers.js
 import { Box, BoxStack } from "./../types";
-import { BOX_HEIGHT, BOX_WIDTH, BOX_TYPES } from "./../constants";
-import { RETURN_TYPES } from "./../../constants"
+import { BOX_HEIGHT, BOX_WIDTH } from "./../constants";
+import { RETURN_TYPES, BOX_TYPES } from "./../../constants"
 import { getEmptySubBlock, getEmptyInputBlock } from "../utils/boxCreation";
 import { getContents, replaceContents, removeSubBox, boxIsASubBoxOf } from "./../utils/boxOperations";
 
@@ -70,20 +70,18 @@ export function createMouseHandlers({
             if (!clickedBox) return; // Should not happen if id is valid
 
             if (clickedBox.isOriginal) {
-                // For original blocks (from library), grabOffset is relative to the rendered top-left
-                // of the *cloned* block's base position on the canvas.
-                // We calculate `offsetX` and `offsetY` as the distance from the mouse to the visual
-                // top-left of the rendered box.
                 const boxRect = ref.getBoundingClientRect();
                 offsetX = e.clientX - boxRect.left + LIBRARY_WIDTH;
                 offsetY = e.clientY - boxRect.top;
             } else {
-                // For existing blocks on the canvas, `grabOffset` needs to represent the difference
-                // between the mouse's current viewport position and the block's internal (unpanned) coordinates.
-                // This ensures that when the block is dragged, its `box.x` and `box.y` values (which are
-                // internal coordinates) are correctly updated relative to the mouse and the canvas's state.
-                offsetX = (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX) - clickedBox.x - clickedBox.indentation * BOX_HEIGHT;
-                offsetY = (e.clientY - containerRect.top - canvasOffsetY) - clickedBox.y;
+                if (clickedBox.type === BOX_TYPES.SUB_BLOCK) {
+                    const boxRect = ref.getBoundingClientRect();
+                    offsetX = e.clientX - boxRect.left + LIBRARY_WIDTH;
+                    offsetY = e.clientY - boxRect.top;
+                } else {
+                    offsetX = (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX) - clickedBox.x - clickedBox.indentation * BOX_HEIGHT;
+                    offsetY = (e.clientY - containerRect.top - canvasOffsetY) - clickedBox.y;
+                }
             }
             
             setGrabOffset({ x: offsetX, y: offsetY });
@@ -177,11 +175,17 @@ export function createMouseHandlers({
                         else if (draggingBoxCandidate.type === BOX_TYPES.END_WRAPPER) {
                             startIndex = originalBoxStack.boxes.length - 1 - originalBoxStack.boxes.toReversed().findIndex((box, index) => draggingBoxCandidate && box.indentation === dragIndentation && box.type === BOX_TYPES.WRAPPER && boxIndex > originalBoxStack.boxes.length - index - 1);
                             endIndex = originalBoxStack.boxes.findIndex((box, index) => draggingBoxCandidate && box.indentation < dragIndentation && index > boxIndex) - 1;
+                            if (startIndex === originalBoxStack.boxes.length) {
+                                startIndex = originalBoxStack.boxes.findIndex(box => box.id === draggingBoxCandidate.id)
+                                endIndex = startIndex
+                            }
                         }
-    
+                        
                         if (endIndex === -2) {
                             endIndex = originalBoxStack.boxes.length - 1
                         }
+                        console.log(startIndex)
+                        console.log(endIndex)
                         draggedBoxes = originalBoxStack.boxes.slice(startIndex, endIndex + 1);
                         remainingBoxes = originalBoxStack.boxes.slice(0, startIndex).concat(originalBoxStack.boxes.slice(endIndex + 1));
     
@@ -218,7 +222,9 @@ export function createMouseHandlers({
                                 return {
                                     ...box, 
                                     // Ensure x is just the base x; indentation will be handled by previousIndentation and rendering.
-                                    x: box.x + draggingBoxCandidate.indentation * BOX_HEIGHT, 
+                                    x: box.type === BOX_TYPES.SUB_BLOCK ? 
+                                        (e.clientX - containerRect.left - LIBRARY_WIDTH - canvasOffsetX - offsetX) : 
+                                        (box.x + draggingBoxCandidate.indentation * BOX_HEIGHT), 
                                     indentation: previousIndentation
                                 }
                             }),

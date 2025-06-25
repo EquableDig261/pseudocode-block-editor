@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import { POSSIBLE_LINE_PATTERNS, BOX_TYPES } from './constants';
 import dynamic from 'next/dynamic';
 import type * as MonacoEditorType from 'monaco-editor';
 
@@ -20,14 +21,7 @@ function checkSyntaxErrors(code: string, monacoInstance: typeof MonacoEditorType
   const errors: MonacoEditorType.editor.IMarkerData[] = [];
   const lines = code.split('\n');
 
-  const blockStack: Array<{ keyword: string, line: number }> = [];
-  const blockPairs = {
-    'IF': 'ENDIF',
-    'WHILE': 'ENDWHILE',
-    'FOR': 'NEXT',
-    'REPEAT': 'UNTIL',
-    'BEGIN': 'END'
-  };
+  let currentExpectedIndentation = 0
 
   lines.forEach((line, lineIndex) => {
     const lineNumber = lineIndex + 1;
@@ -45,6 +39,40 @@ function checkSyntaxErrors(code: string, monacoInstance: typeof MonacoEditorType
         severity: monacoInstance.MarkerSeverity.Error,
       });
     }
+    let cleaned = line.replace(/\u00A0|\u2003|\u2002|\u2009/g, ' ');
+    cleaned = line.replace(/\t/g, '    ');
+    const matchResult = cleaned.match(/^\s*/);
+    const whitespaceArray = matchResult && typeof matchResult[0] === "string" ? matchResult[0].split("") : "";
+    const indent = Math.ceil(whitespaceArray.length / 4)
+    const pattern = POSSIBLE_LINE_PATTERNS.find(pattern => line.trim().match(pattern.pattern))
+    if (pattern !== undefined) {
+      if (pattern.type === BOX_TYPES.END_WRAPPER || pattern.type === BOX_TYPES.MID_WRAPPER) {
+        currentExpectedIndentation -= 1
+      }
+      if (indent !== currentExpectedIndentation) {
+        errors.push({
+          startLineNumber: lineNumber,
+          startColumn: 1,
+          endLineNumber: lineNumber,
+          endColumn: line.length + 1,
+          message: 'Incorrect Indentation: Expected ' + currentExpectedIndentation.toString(),
+          severity: monacoInstance.MarkerSeverity.Error,
+        });
+      }
+      if (pattern.type === BOX_TYPES.WRAPPER || pattern.type === BOX_TYPES.MID_WRAPPER) {
+        currentExpectedIndentation += 1
+      }
+    }
+    else if (line.trim() !== ""){
+      errors.push({
+        startLineNumber: lineNumber,
+        startColumn: 1,
+        endLineNumber: lineNumber,
+        endColumn: line.length + 1,
+        message: 'Unknown Statement',
+        severity: monacoInstance.MarkerSeverity.Error,
+      });
+    }
 
     // Check for IF without THEN
     if (trimmedLine.startsWith('IF ') && !trimmedLine.includes(' THEN')) {
@@ -57,104 +85,6 @@ function checkSyntaxErrors(code: string, monacoInstance: typeof MonacoEditorType
         severity: monacoInstance.MarkerSeverity.Error,
       });
     }
-
-    // Check for invalid variable names (starting with numbers)
-    const invalidVarMatches = line.match(/\b\d+[a-zA-Z_]\w*/g);
-    if (invalidVarMatches) {
-      invalidVarMatches.forEach(match => {
-        const startCol = line.indexOf(match) + 1;
-        errors.push({
-          startLineNumber: lineNumber,
-          startColumn: startCol,
-          endLineNumber: lineNumber,
-          endColumn: startCol + match.length,
-          message: 'Invalid identifier: cannot start with a number',
-          severity: monacoInstance.MarkerSeverity.Error,
-        });
-      });
-    }
-
-    // Track block structures for matching
-    Object.keys(blockPairs).forEach(startKeyword => {
-      if (trimmedLine.startsWith(startKeyword + ' ') || trimmedLine === startKeyword) {
-        blockStack.push({ keyword: startKeyword, line: lineNumber });
-      }
-    });
-
-    // Check for block endings
-    Object.values(blockPairs).forEach(endKeyword => {
-      if (trimmedLine.startsWith(endKeyword) || trimmedLine === endKeyword) {
-        const expectedStart = Object.keys(blockPairs).find(key => blockPairs[key as keyof typeof blockPairs] === endKeyword);
-
-        if (blockStack.length === 0) {
-          errors.push({
-            startLineNumber: lineNumber,
-            startColumn: 1,
-            endLineNumber: lineNumber,
-            endColumn: endKeyword.length + 1,
-            message: `Unexpected ${endKeyword}: no matching block start`,
-            severity: monacoInstance.MarkerSeverity.Error,
-          });
-        } else {
-          const lastBlock = blockStack.pop();
-          if (lastBlock?.keyword !== expectedStart) {
-            errors.push({
-              startLineNumber: lineNumber,
-              startColumn: 1,
-              endLineNumber: lineNumber,
-              endColumn: endKeyword.length + 1,
-              message: `Mismatched block: expected ${blockPairs[lastBlock?.keyword as keyof typeof blockPairs] || 'unknown'} but found ${endKeyword}`,
-              severity: monacoInstance.MarkerSeverity.Error,
-            });
-          }
-        }
-      }
-    });
-
-    // Check for empty display statements
-    if (trimmedLine === 'DISPLAY' || trimmedLine === 'DISPLAY ') {
-      errors.push({
-        startLineNumber: lineNumber,
-        startColumn: 1,
-        endLineNumber: lineNumber,
-        endColumn: line.length + 1,
-        message: 'DISPLAY statement requires an argument',
-        severity: monacoInstance.MarkerSeverity.Warning,
-      });
-    }
-
-    // Check for assignment without operator
-    if (line.includes('=') && !line.match(/\w+\s*=\s*\w+/)) {
-      const equalPos = line.indexOf('=');
-      if (equalPos > 0 && equalPos < line.length - 1) {
-        const beforeEqual = line.substring(0, equalPos).trim();
-        const afterEqual = line.substring(equalPos + 1).trim();
-
-        if (!beforeEqual || !afterEqual) {
-          errors.push({
-            startLineNumber: lineNumber,
-            startColumn: equalPos + 1,
-            endLineNumber: lineNumber,
-            endColumn: equalPos + 2,
-            message: 'Incomplete assignment statement',
-            severity: monacoInstance.MarkerSeverity.Warning,
-          });
-        }
-      }
-    }
-  });
-
-  // Check for unclosed blocks
-  blockStack.forEach(block => {
-    const expectedEnd = blockPairs[block.keyword as keyof typeof blockPairs];
-    errors.push({
-      startLineNumber: block.line,
-      startColumn: 1,
-      endLineNumber: block.line,
-      endColumn: block.keyword.length + 1,
-      message: `Unclosed ${block.keyword} block: missing ${expectedEnd}`,
-      severity: monacoInstance.MarkerSeverity.Error,
-    });
   });
 
   return errors;

@@ -1,6 +1,6 @@
 
-import { BOX_TYPES, BOX_HEIGHT, LIBRARY_X_SPACING, LIBRARY_Y_SPACING, LIBRARY_BOXES, SUB_BOX_TYPES } from "../constants";
-import { RETURN_TYPES, COLORS } from "./../../constants";
+import { BOX_HEIGHT, LIBRARY_X_SPACING, LIBRARY_Y_SPACING, LIBRARY_BOXES, SUB_BOX_TYPES } from "../constants";
+import { RETURN_TYPES, COLORS, BOX_TYPES, KEYWORDS } from "./../../constants";
 import { Box, BoxStack } from "../types"
 import { RefObject } from "react"
 
@@ -55,7 +55,7 @@ export const createNewVariable = (variableName: string, boxes: BoxStack[], id: n
 
 export const getOriginalBoxes = (id: RefObject<number>): BoxStack[] => {
     let heightOffset = 0;
-    return LIBRARY_BOXES.map((stack, index) => {
+    const libraryBoxes : BoxStack[] = LIBRARY_BOXES.map((stack, index) => {
         heightOffset += stack.boxes.length - 1;
         return {boxes: stack.boxes.map((b, i) => ({
             id: id.current++,
@@ -77,6 +77,17 @@ export const getOriginalBoxes = (id: RefObject<number>): BoxStack[] => {
         isDragging: false,
         };
     });
+    const writtenCode = localStorage.getItem("editorContent")
+    if (writtenCode !== null) {
+        const splitCode = writtenCode.replaceAll("\t", " ").replaceAll("\n", " ").split(" ")
+        splitCode.forEach(word => {
+            if (typeof word === "string" && !(KEYWORDS.includes(word)) && /[a-zA-Z]/i.test(word[0])) {
+                const newVar = createNewVariable(word, libraryBoxes, id.current++)
+                if (newVar !== undefined) libraryBoxes.push(newVar);
+            }
+        } )
+    }
+    return libraryBoxes;
 }
 
 export const getCSArray = (nextId: React.RefObject<number>, contents: Box[]) : Box => {
